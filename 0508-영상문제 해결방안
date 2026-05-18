@@ -1,0 +1,28 @@
+1. 현재 영상 종류
+- Home idle 영상:
+idle01.mp4, idle02.mp4, idle03.mp4
+- happy/action 영상:
+happy01.mp4, happy02.mp4, happy03.mp4, eat01.mp4, hungry01.mp4, hungry02.mp4,hungry03.mp4, wants_walk01.mp4, wants_walk02.mp4, wants_walk0103.mp4
+- walk 영상:
+walk01.mp4
+
+- reward 영상:
+
+2. 영상 파일 위치
+- 로컬 assets:
+- GitHub/raw URL:
+- 서버 URL:
+
+3. 현재 사용하는 라이브러리
+- expo-av Video인지
+- expo-video인지
+
+4. 현재 문제
+- 안 나옴 / 멈춤 / 검은 화면 / 루프 안 됨 / 전환 느림 / 버튼 비활성화 / 터치 반응 문제
+
+5. 관련 파일
+- DogVisual.tsx
+- HomeScreen.tsx
+- WalkScreen.tsx
+- App.tsx
+- video path 관리 파일이 있다면 그것도

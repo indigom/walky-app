@@ -1,0 +1,22 @@
+{
+  "breed": "corgi",
+  "version": 1,
+  "videos": {
+    "idle": ["idle01.mp4", "idle02.mp4"],
+    "empty": ["empty01.mp4"],
+    "happy": ["happy01.mp4", "happy02.mp4"],
+    "eat": ["eat01.mp4"],
+    "look": ["look01.mp4", "look02.mp4"],
+    "sleep": ["sleep01.mp4"],
+    "walk": ["walk01-v2.mp4"],
+    "hungryMedium": ["hungrymedium01.mp4"],
+    "hungryStrong": ["hungrystrong01.mp4"],
+    "hungryCritical": ["hungrycritical01.mp4"],
+    "walkWantMedium": ["walkwantmedium01.mp4"],
+    "walkWantStrong": ["walkwantstrong01.mp4"],
+    "walkWantCritical": ["walkwantcritical01.mp4"],
+    "hungryIgnored3Days": ["hungryignored01.mp4"],
+    "walkIgnored3Days": ["walkignored01.mp4"],
+    "neglected3Days": ["neglected01.mp4"]
+  }
+}
