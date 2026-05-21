@@ -32,36 +32,33 @@ SSL(HTTPS)은 가비아 패널에서 `walky.co.kr` 인증서 적용.
 - `walky-app/server/` 안에 다음 3파일이 있는지 확인:  
   `index.js`, `nearbyPresence.js`, `package.json`
 
-### 2-2. GitHub에 `server` 올리기 (처음 한 번)
+### 2-2. GitHub — **완료됨**
 
-**방법 A — walky-app 전체 repo**
+| 항목 | 값 |
+|------|-----|
+| 저장소 | https://github.com/indigom/walky-app |
+| 브랜치 | `master` |
+| API 소스 | `server/` (`index.js`, `nearbyPresence.js`, `nearbySocial.js`, `railway.toml`) |
 
-1. GitHub에 저장소 생성 (예: `walky-app`)
-2. PC CMD:
+추가 push만 하면 Railway가 자동으로 재배포합니다 (GitHub 연동 후).
 
-```cmd
-cd /d c:\work\walky-app
-git init
-git add server package.json
-git commit -m "Add walky server API"
-git branch -M main
-git remote add origin https://github.com/본인아이디/walky-app.git
-git push -u origin main
-```
+### 2-3. Railway에서 프로젝트 만들기 (대시보드)
 
-**방법 B — API만 작은 repo**
-
-`server` 폴더만 복사해 새 repo `walky-api` 로 push 해도 됩니다.
-
-### 2-3. Railway에서 프로젝트 만들기
-
-1. Railway → **New Project** → **Deploy from GitHub repo**
-2. 방금 repo 선택
-3. 서비스 클릭 → **Settings**
-   - **Root Directory**: `server`  ← **중요** (monorepo일 때)
-   - **Start Command**: `npm start` (기본값이면 그대로)
+1. [railway.app/new/github](https://railway.app/new/github) → GitHub 연동(처음이면)
+2. **`indigom/walky-app`** 선택 → Deploy
+3. 생성된 **서비스** 클릭 → **Settings**
+   - **Root Directory**: `server`  ← **필수** (monorepo)
+   - **Start Command**: `npm start` (`server/railway.toml` 과 동일)
 4. **Settings → Networking → Generate Domain**  
    예: `walky-api-production.up.railway.app`
+5. **Deployments** 탭에서 빌드·실행 로그가 초록인지 확인
+
+**CLI로 할 때** (GitHub 자동 배포 대신 직접 업로드):
+
+```powershell
+cd c:\work\walky-app\server
+.\deploy\railway-setup.ps1
+```
 
 ### 2-4. 동작 확인
 
