@@ -1,0 +1,16 @@
+{
+  "name": "walky-server-api",
+  "private": true,
+  "version": "1.0.0",
+  "description": "walky.co.kr — 근처 산책자 API (Node + Express)",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  }
+}
