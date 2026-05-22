@@ -67,8 +67,12 @@ async function handleProfilePost(req, res) {
       const jpeg = await processPhotoBuffer(req.file.buffer);
       profilePhotoUrl = await uploadProfileJpeg(userId, jpeg);
     } catch (e) {
-      console.error('profile upload failed:', e?.message ?? e);
-      return res.status(502).json({ error: 'Failed to store profile photo' });
+      const detail = e?.message ?? String(e);
+      console.error('profile upload failed:', detail);
+      return res.status(502).json({
+        error: 'Failed to store profile photo',
+        hint: 'Check Railway SFTP_* variables and Gabia SFTP_REMOTE_DIR (see Deploy Logs)',
+      });
     }
   }
 
