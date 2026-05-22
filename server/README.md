@@ -24,7 +24,7 @@ EXPO_PUBLIC_NEARBY_WALKER_API_URL=https://walky.co.kr/api/nearby/presence
 | 파일 | 내용 |
 |------|------|
 | **`Walky-API-필요구간-정리.pptx`** | API·배포 + **알림(로컬 vs 서버 푸시)**·푸시 로드맵 |
-| **`Walky-프로필사진-업로드API.pptx`** | 프로필 사진 업로드 API 설계 (미구현) |
+| **`Walky-프로필사진-업로드API.pptx`** | 프로필·닉네임 SFTP 업로드 설계 |
 
 재생성 (프로젝트 루트):
 
@@ -62,8 +62,26 @@ npm run generate:ppt:profile
 앱이 호출하는 URL:
 
 - 에셋: `https://walky.co.kr/dogs/{breed}/manifest.json`
-- API: `https://walky.co.kr/api/nearby/presence`
-- 노크·대화: `https://walky.co.kr/api/nearby/social`
+- API: `https://walky.co.kr/api/nearby/presence` (또는 Railway)
+- 노크·대화: `/api/nearby/social`
+- **프로필:** `POST /api/profile` (닉네임 + 사진 → **가비아 SFTP** `profiles/`)
+
+### 프로필 SFTP (Railway Variables)
+
+`server/.env.example` 참고. Railway에 설정:
+
+- `SFTP_HOST`, `SFTP_PORT`, `SFTP_USER`, `SFTP_PASSWORD`
+- `SFTP_REMOTE_DIR` — 예: `/www/profiles` (가비아 실제 경로 확인)
+- `PROFILE_PUBLIC_BASE_URL` — `https://walky.co.kr/profiles`
+- `ADMIN_API_KEY` — 운영자 목록 `GET /api/admin/profiles` (헤더 `x-walky-admin-key`)
+
+가비아 웹에서 `https://walky.co.kr/profiles/w_xxx.jpg` 가 열리는지 확인.
+
+운영자 목록 예:
+
+```bash
+curl -H "x-walky-admin-key: YOUR_KEY" https://YOUR-RAILWAY.up.railway.app/api/admin/profiles
+```
 
 ## API 설치 (Linux)
 

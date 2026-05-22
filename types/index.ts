@@ -31,6 +31,13 @@ export type DogReaction = 'idle' | 'hungry' | 'wants_walk';
 
 export type UserProfile = {
   nickname?: string;
+  /** 서버·가비아 HTTPS (다른 사용자·목록 표시) */
+  profilePhotoUrl?: string;
+  /** 앱 문서 디렉터리에 저장된 프로필 사진 (file://) */
+  profilePhotoUri?: string;
+  /** 온보딩에서 사진 단계를 완료했는지 (등록 또는 건너뛰기) */
+  profilePhotoSetupDone?: boolean;
+  profilePhotoSkipped?: boolean;
   age?: number;
   weightKg?: number;
   heightCm?: number;

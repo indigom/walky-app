@@ -43,19 +43,14 @@ export function DogVisual({
   const prevVideoPathRef = useRef<string | null>(null);
   const crossfadeGenRef = useRef(0);
   const baseCrossfadeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
+  const prevReplayKeyRef = useRef(videoReplayKey);
 
-  const basePlayerA = useVideoPlayer(
-    videoPath ? { uri: videoPath } : EMPTY_SOURCE,
-    (player) => {
-      player.loop = videoLoop;
-      player.muted = muted;
-      if (videoPath && isScreenActive) {
-        player.play();
-      } else {
-        player.pause();
-      }
-    }
-  );
+  /** 소스는 effect에서만 replace — hook 인자에 videoPath 넣으면 전환 시 끊김 */
+  const basePlayerA = useVideoPlayer(EMPTY_SOURCE, (player) => {
+    player.loop = videoLoop;
+    player.muted = muted;
+    player.pause();
+  });
 
   const basePlayerB = useVideoPlayer(EMPTY_SOURCE, (player) => {
     player.loop = videoLoop;
@@ -98,9 +93,11 @@ export function DogVisual({
     [baseStackOpacityAnim, actionOpacityAnim]
   );
 
+  type VideoPlayer = ReturnType<typeof useVideoPlayer>;
+
   const loadBaseOnPlayer = useCallback(
     (
-      player: ReturnType<typeof useVideoPlayer>,
+      player: VideoPlayer,
       path: string,
       loop: boolean,
       shouldPlay: boolean
@@ -119,24 +116,40 @@ export function DogVisual({
     [muted]
   );
 
-  const crossfadeBaseVideo = useCallback(
-    (newPath: string, loop: boolean) => {
-      const fromSlot = activeBaseSlotRef.current;
-      const toSlot: BaseSlot = fromSlot === 'A' ? 'B' : 'A';
+  const waitForBaseReady = useCallback(
+    (player: VideoPlayer, timeoutMs = 2500) =>
+      new Promise<void>((resolve) => {
+        if (player.status === 'readyToPlay') {
+          resolve();
+          return;
+        }
+
+        const sub = player.addListener('statusChange', ({ status }) => {
+          if (status === 'readyToPlay') {
+            sub.remove();
+            resolve();
+          }
+        });
+
+        setTimeout(() => {
+          sub.remove();
+          resolve();
+        }, timeoutMs);
+      }),
+    []
+  );
+
+  const runBaseOpacityCrossfade = useCallback(
+    (
+      fromSlot: BaseSlot,
+      toSlot: BaseSlot,
+      gen: number,
+      newPath: string,
+      shouldPlay: boolean
+    ) => {
       const fadeOut = fromSlot === 'A' ? baseOpacityA : baseOpacityB;
       const fadeIn = toSlot === 'A' ? baseOpacityA : baseOpacityB;
-      const playerIn = toSlot === 'A' ? basePlayerA : basePlayerB;
       const playerOut = fromSlot === 'A' ? basePlayerA : basePlayerB;
-
-      const gen = ++crossfadeGenRef.current;
-      baseCrossfadeAnimRef.current?.stop();
-
-      try {
-        loadBaseOnPlayer(playerIn, newPath, loop, isScreenActive);
-      } catch (e) {
-        console.log('DogVisual base crossfade load', e);
-        return;
-      }
 
       baseCrossfadeAnimRef.current = Animated.parallel([
         Animated.timing(fadeOut, {
@@ -162,15 +175,59 @@ export function DogVisual({
         } catch (e) {
           console.log('DogVisual base crossfade pause out', e);
         }
+
+        if (!shouldPlay) {
+          try {
+            const playerIn = toSlot === 'A' ? basePlayerA : basePlayerB;
+            playerIn.pause();
+          } catch {}
+        }
       });
     },
+    [baseOpacityA, baseOpacityB, basePlayerA, basePlayerB]
+  );
+
+  const crossfadeBaseVideo = useCallback(
+    (newPath: string, loop: boolean) => {
+      const fromSlot = activeBaseSlotRef.current;
+      const toSlot: BaseSlot = fromSlot === 'A' ? 'B' : 'A';
+      const playerIn = toSlot === 'A' ? basePlayerA : basePlayerB;
+
+      const gen = ++crossfadeGenRef.current;
+      baseCrossfadeAnimRef.current?.stop();
+
+      const shouldPlay = isScreenActive && !actionPath;
+
+      void (async () => {
+        try {
+          loadBaseOnPlayer(playerIn, newPath, loop, false);
+          await waitForBaseReady(playerIn);
+        } catch (e) {
+          console.log('DogVisual base crossfade load', e);
+          return;
+        }
+
+        if (gen !== crossfadeGenRef.current) return;
+
+        if (shouldPlay) {
+          try {
+            playerIn.play();
+          } catch (e) {
+            console.log('DogVisual base crossfade play', e);
+          }
+        }
+
+        runBaseOpacityCrossfade(fromSlot, toSlot, gen, newPath, shouldPlay);
+      })();
+    },
     [
-      baseOpacityA,
-      baseOpacityB,
       basePlayerA,
       basePlayerB,
       isScreenActive,
+      actionPath,
       loadBaseOnPlayer,
+      waitForBaseReady,
+      runBaseOpacityCrossfade,
     ]
   );
 
@@ -209,22 +266,11 @@ export function DogVisual({
 
       if (actionPath) {
         actionPlayer.play();
-      } else if (videoPath) {
-        getActiveBasePlayer().play();
       }
     } catch (e) {
       console.log('DogVisual resume', e);
     }
-  }, [
-    isScreenActive,
-    videoPath,
-    actionPath,
-    basePlayerA,
-    basePlayerB,
-    actionPlayer,
-    muted,
-    getActiveBasePlayer,
-  ]);
+  }, [isScreenActive, actionPath, basePlayerA, basePlayerB, actionPlayer, muted]);
 
   /** 베이스 소스 교체 — ambient idle ↔ hungry 등은 크로스디졸브 */
   useEffect(() => {
@@ -278,30 +324,13 @@ export function DogVisual({
     loadBaseOnPlayer,
   ]);
 
+  /** videoReplayKey만 베이스 리플레이 — videoPath 변경은 crossfade가 처리 */
   useEffect(() => {
-    if (!isScreenActive || !videoPath) return;
+    if (prevReplayKeyRef.current === videoReplayKey) return;
+    prevReplayKeyRef.current = videoReplayKey;
 
-    requestAnimationFrame(() => {
-      if (!actionPath && isMountedRef.current) {
-        try {
-          const active = getActiveBasePlayer();
-          active.loop = videoLoop;
-          active.play();
-        } catch (e) {
-          console.log('DogVisual focus base', e);
-        }
-      }
-    });
-  }, [
-    isScreenActive,
-    videoPath,
-    actionPath,
-    getActiveBasePlayer,
-    videoLoop,
-  ]);
-
-  useEffect(() => {
     if (!videoPath || !isScreenActive || actionPath) return;
+    if (videoPath !== prevVideoPathRef.current) return;
 
     try {
       const active = getActiveBasePlayer();

@@ -9,9 +9,11 @@ import {
 
 import { BreedSelectScreen } from './screens/BreedSelectScreen';
 import { NameInputScreen } from './screens/NameInputScreen';
+import { ProfilePhotoScreen } from './screens/ProfilePhotoScreen';
 import { UserInfoScreen } from './screens/UserInfoScreen';
 import { WalkHabitScreen } from './screens/WalkHabitScreen';
 import { HomeScreen } from './screens/HomeScreen';
+import { SettingsScreen } from './screens/SettingsScreen';
 import { WalkScreen } from './screens/WalkScreen';
 import {
   INSUFFICIENT_WALK_ENERGY_MESSAGE,
@@ -33,6 +35,11 @@ import {
   applyStoredBackgroundEmptyOnLaunch,
   markAppEnteredBackground,
 } from './utils/dogBackgroundEmpty';
+import { hasProfilePhotoSetup } from './utils/profilePhotoProfile';
+import {
+  mergeProfileSyncIntoUser,
+  syncUserProfileToServer,
+} from './utils/profileSync';
 import { hasWalkHabitProfile } from './utils/walkHabitProfile';
 import { syncDailyWalkReminderFromProfile } from './utils/walkReminderNotifications';
 
@@ -50,6 +57,7 @@ type RootStackParamList = {
   BreedSelect: undefined;
   NameInput: undefined;
   UserInfo: undefined;
+  ProfilePhoto: undefined;
   WalkHabit: undefined;
   Home: undefined;
   Walk: undefined;
@@ -57,6 +65,7 @@ type RootStackParamList = {
   WalkResult: undefined;
   RewardVideo: undefined;
   WalkHistory: undefined;
+  Settings: undefined;
 };
 
 type WalkResultScreenNavigation = NativeStackNavigationProp<
@@ -361,6 +370,11 @@ export default function App() {
           return;
         }
 
+        if (!hasProfilePhotoSetup(parsedDogState.user)) {
+          setInitialRouteName('ProfilePhoto');
+          return;
+        }
+
         if (!hasWalkHabitProfile(parsedDogState.user)) {
           setInitialRouteName('WalkHabit');
           return;
@@ -554,6 +568,47 @@ export default function App() {
                   },
                 }));
 
+                navigation.replace('ProfilePhoto');
+              }}
+            />
+          )}
+        </Stack.Screen>
+
+        <Stack.Screen name="ProfilePhoto">
+          {({ navigation }) => (
+            <ProfilePhotoScreen
+              initialNickname={dogState.user?.nickname}
+              onSubmit={async (result) => {
+                const baseUser: UserProfile = {
+                  ...(dogState.user ?? {}),
+                  nickname: result.nickname,
+                  profilePhotoSetupDone: true,
+                  profilePhotoSkipped: result.skipped,
+                  profilePhotoUri: result.skipped
+                    ? undefined
+                    : result.profilePhotoUri,
+                };
+
+                setDogState((prev) => ({
+                  ...prev,
+                  user: baseUser,
+                }));
+
+                const synced = await syncUserProfileToServer({
+                  nickname: result.nickname,
+                  localPhotoUri: result.skipped
+                    ? undefined
+                    : result.profilePhotoUri,
+                  skipped: result.skipped,
+                });
+
+                if (synced) {
+                  setDogState((prev) => ({
+                    ...prev,
+                    user: mergeProfileSyncIntoUser(baseUser, synced),
+                  }));
+                }
+
                 navigation.replace('WalkHabit');
               }}
             />
@@ -589,7 +644,18 @@ export default function App() {
               dogManifest={dogManifest}
               todayTotal={getTodayTotal(walkRecords)}
               onOpenWalkHistory={() => navigation.navigate('WalkHistory')}
+              onOpenSettings={() => navigation.navigate('Settings')}
               onStartWalk={() => navigation.navigate('Walk')}
+            />
+          )}
+        </Stack.Screen>
+
+        <Stack.Screen name="Settings">
+          {({ navigation }) => (
+            <SettingsScreen
+              dogState={dogState}
+              setDogState={setDogState}
+              onClose={() => navigation.goBack()}
             />
           )}
         </Stack.Screen>

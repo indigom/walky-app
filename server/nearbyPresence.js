@@ -3,6 +3,8 @@
  * 프로덕션: Redis 등 공유 저장소 권장 (현재는 단일 Node 프로세스 메모리).
  */
 
+const { getProfile } = require('./profileStore');
+
 const PRESENCE_TTL_MS = 2 * 60 * 1000;
 const DEFAULT_RADIUS_M = 50;
 const PAIR_COOLDOWN_MS = 10 * 60 * 1000;
@@ -55,6 +57,10 @@ function findNearbyOppositeWalkers(userId, lat, lng, gender, radiusM) {
       nickname:
         typeof other.nickname === 'string' && other.nickname.trim()
           ? other.nickname.trim()
+          : undefined,
+      profilePhotoUrl:
+        typeof other.profilePhotoUrl === 'string' && other.profilePhotoUrl.trim()
+          ? other.profilePhotoUrl.trim()
           : undefined,
       gender: other.gender,
       distanceM: Math.round(distanceM),
@@ -117,6 +123,9 @@ async function handleNearbyPresence(req, res) {
   const dogName = typeof body.dogName === 'string' ? body.dogName : '강아지';
   const nickname =
     typeof body.nickname === 'string' ? body.nickname : undefined;
+  const profilePhotoUrl =
+    typeof body.profilePhotoUrl === 'string' ? body.profilePhotoUrl : undefined;
+  const storedProfile = getProfile(userId);
   const alertsEnabled = body.alertsEnabled !== false;
   const radiusM =
     typeof body.radiusM === 'number' && body.radiusM > 0
@@ -139,7 +148,9 @@ async function handleNearbyPresence(req, res) {
     gender,
     pushToken,
     dogName,
-    nickname,
+    nickname: nickname ?? storedProfile?.nickname,
+    profilePhotoUrl:
+      profilePhotoUrl ?? storedProfile?.profilePhotoUrl,
     updatedAt: now,
   });
 
