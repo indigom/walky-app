@@ -18,7 +18,11 @@ app.use((req, res, next) => {
 });
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'walky-api' });
+  res.json({ ok: true, service: 'walky-api', port: PORT });
+});
+
+app.get('/', (_req, res) => {
+  res.json({ ok: true, service: 'walky-api', health: '/health' });
 });
 
 app.post('/api/nearby/presence', handleNearbyPresence);

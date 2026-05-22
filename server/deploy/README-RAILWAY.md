@@ -157,8 +157,15 @@ Walky API listening on http://0.0.0.0:XXXX
 |------|-----|
 | Source Repo | `indigom/walky-app` ( `/server` 붙이지 않음 ) |
 | **Root Directory** | `server` |
-| **Start Command** | `npm start` 또는 `node index.js` |
+| **Start Command** | `node index.js` (또는 비움 — `server/Dockerfile` 사용) |
 | Variables `PORT` | **직접 넣지 않음** (Railway가 자동 주입) |
+
+**Target Port (502가 계속될 때):**
+
+1. Deploy Logs에서 `Walky API listening on http://0.0.0.0:XXXX` 의 **XXXX** 확인 (8080·8081 등 **배포마다 다를 수 있음**)
+2. **Settings → Networking** → 도메인 **Target Port** = **그 XXXX와 동일**
+3. 안 되면 Target Port를 **비우거나 Auto**로 두고 Redeploy (Dockerfile 배포 시 자동 맞춤되는 경우 많음)
+4. 도메인 `walky-app-production-….railway.app` 이 **API 서비스**(로그에 Walky API)에 붙었는지 확인 — 다른 프로젝트(`truthful-elegance` 등)에 붙으면 502
 
 **자주 하는 실수**
 
