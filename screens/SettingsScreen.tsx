@@ -5,7 +5,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Pressable,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -13,6 +12,7 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NearbyWalkerAlertsSwitch } from '../components/NearbyWalkerAlertsSwitch';
 import { PrimaryButton } from '../components/PrimaryButton';
@@ -135,12 +135,21 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
         profilePhotoSetupDone,
       };
 
-      const synced = await syncUserProfileToServer({
+      const outcome = await syncUserProfileToServer({
         nickname: nextUser.nickname,
         localPhotoUri: photoChanged ? profilePhotoUri : undefined,
         skipped: nextUser.profilePhotoSkipped,
       });
-      nextUser = mergeProfileSyncIntoUser(nextUser, synced);
+
+      if (outcome.ok) {
+        nextUser = mergeProfileSyncIntoUser(nextUser, outcome.data);
+      } else if (photoChanged) {
+        Alert.alert(
+          '서버에 사진 저장 실패',
+          '기기에는 저장됐지만 서버(SFTP) 업로드가 실패했어요. Railway SFTP 설정을 확인해 주세요.',
+          [{ text: '확인' }]
+        );
+      }
 
       setDogState((prev) => ({
         ...prev,

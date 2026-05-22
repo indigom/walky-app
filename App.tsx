@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { AppState } from 'react-native';
+import { Alert, AppState } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
+import { SafeAreaProvider } from 'react-native-safe-area-context';
 import {
   createNativeStackNavigator,
   type NativeStackNavigationProp,
@@ -517,6 +518,7 @@ export default function App() {
   }
 
   return (
+    <SafeAreaProvider>
     <NavigationContainer>
       <Stack.Navigator
         initialRouteName={initialRouteName}
@@ -578,7 +580,7 @@ export default function App() {
           {({ navigation }) => (
             <ProfilePhotoScreen
               initialNickname={dogState.user?.nickname}
-              onSubmit={async (result) => {
+              onSubmit={(result) => {
                 const baseUser: UserProfile = {
                   ...(dogState.user ?? {}),
                   nickname: result.nickname,
@@ -594,22 +596,33 @@ export default function App() {
                   user: baseUser,
                 }));
 
-                const synced = await syncUserProfileToServer({
+                navigation.replace('WalkHabit');
+
+                void syncUserProfileToServer({
                   nickname: result.nickname,
                   localPhotoUri: result.skipped
                     ? undefined
                     : result.profilePhotoUri,
                   skipped: result.skipped,
+                }).then((outcome) => {
+                  if (outcome.ok) {
+                    setDogState((prev) => ({
+                      ...prev,
+                      user: mergeProfileSyncIntoUser(
+                        prev.user ?? baseUser,
+                        outcome.data
+                      ),
+                    }));
+                    return;
+                  }
+                  if (!result.skipped && result.profilePhotoUri) {
+                    Alert.alert(
+                      '서버에 사진 저장 실패',
+                      '기기에는 저장됐지만 가비아 서버(SFTP) 업로드가 실패했어요. 설정에서 다시 시도하거나 Railway SFTP 변수를 확인해 주세요.',
+                      [{ text: '확인' }]
+                    );
+                  }
                 });
-
-                if (synced) {
-                  setDogState((prev) => ({
-                    ...prev,
-                    user: mergeProfileSyncIntoUser(baseUser, synced),
-                  }));
-                }
-
-                navigation.replace('WalkHabit');
               }}
             />
           )}
@@ -763,5 +776,6 @@ export default function App() {
         </Stack.Screen>
       </Stack.Navigator>
     </NavigationContainer>
+    </SafeAreaProvider>
   );
 }

@@ -11,6 +11,10 @@ export type ProfileSyncResult = {
   updatedAt?: number;
 };
 
+export type ProfileSyncOutcome =
+  | { ok: true; data: ProfileSyncResult }
+  | { ok: false; message: string };
+
 function parseProfileResponse(body: string): ProfileSyncResult | null {
   try {
     const data = JSON.parse(body) as Record<string, unknown>;
@@ -45,7 +49,7 @@ function normalizeUploadUri(uri: string): string {
 async function syncNicknameOnly(
   userId: string,
   nickname?: string
-): Promise<ProfileSyncResult | null> {
+): Promise<ProfileSyncOutcome> {
   const form = new FormData();
   form.append('userId', userId);
   if (nickname) {
@@ -57,25 +61,28 @@ async function syncNicknameOnly(
     body: form,
   });
 
+  const body = await res.text();
   if (!res.ok) {
-    console.warn('profile sync failed', res.status, await res.text());
-    return null;
+    console.warn('profile sync failed', res.status, body);
+    return { ok: false, message: body || `HTTP ${res.status}` };
   }
 
-  return parseProfileResponse(await res.text());
+  const data = parseProfileResponse(body);
+  if (!data) return { ok: false, message: 'Invalid server response' };
+  return { ok: true, data };
 }
 
 async function syncWithPhoto(
   userId: string,
   localPhotoUri: string,
   nickname?: string
-): Promise<ProfileSyncResult | null> {
+): Promise<ProfileSyncOutcome> {
   const fileUri = normalizeUploadUri(localPhotoUri);
 
   const info = await FileSystem.getInfoAsync(fileUri);
   if (!info.exists) {
     console.warn('profile sync: file missing', fileUri);
-    return null;
+    return { ok: false, message: 'Local photo file missing' };
   }
 
   const parameters: Record<string, string> = { userId };
@@ -93,10 +100,15 @@ async function syncWithPhoto(
 
   if (result.status < 200 || result.status >= 300) {
     console.warn('profile sync failed', result.status, result.body);
-    return null;
+    return {
+      ok: false,
+      message: result.body || `HTTP ${result.status}`,
+    };
   }
 
-  return parseProfileResponse(result.body);
+  const data = parseProfileResponse(result.body);
+  if (!data) return { ok: false, message: 'Invalid server response' };
+  return { ok: true, data };
 }
 
 /**
@@ -106,11 +118,13 @@ export async function syncUserProfileToServer(input: {
   nickname?: string;
   localPhotoUri?: string | null;
   skipped?: boolean;
-}): Promise<ProfileSyncResult | null> {
-  if (Platform.OS === 'web') return null;
+}): Promise<ProfileSyncOutcome> {
+  if (Platform.OS === 'web') {
+    return { ok: false, message: 'Web not supported' };
+  }
   if (!PROFILE_API_URL) {
     console.warn('profile sync: EXPO_PUBLIC_PROFILE_API_URL not set');
-    return null;
+    return { ok: false, message: 'PROFILE_API_URL not configured' };
   }
 
   const userId = await getWalkyUserId();
@@ -123,7 +137,10 @@ export async function syncUserProfileToServer(input: {
     return await syncNicknameOnly(userId, nick);
   } catch (e) {
     console.warn('profile sync error', PROFILE_API_URL, e);
-    return null;
+    return {
+      ok: false,
+      message: e instanceof Error ? e.message : 'Network request failed',
+    };
   }
 }
 
