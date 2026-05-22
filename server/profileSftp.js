@@ -116,9 +116,71 @@ async function uploadProfileJpeg(userId, jpegBuffer) {
   );
 }
 
+/** Railway Variables·경로 점검용 (관리자) */
+async function testSftpConnection() {
+  if (!sftpConfigured()) {
+    return {
+      ok: false,
+      error: 'SFTP not configured (SFTP_HOST, SFTP_USER, SFTP_PASSWORD)',
+    };
+  }
+
+  const client = new SftpClient();
+  try {
+    await client.connect(buildConnectOptions());
+    const cwd = await client.cwd();
+    let rootEntries = [];
+    try {
+      const list = await client.list(cwd || '.');
+      rootEntries = list.slice(0, 40).map((f) => ({
+        name: f.name,
+        type: f.type,
+      }));
+    } catch (e) {
+      rootEntries = [{ error: e?.message ?? String(e) }];
+    }
+
+    const dirChecks = {};
+    for (const dir of getRemoteDirCandidates()) {
+      try {
+        dirChecks[dir] = await client.exists(dir);
+      } catch (e) {
+        dirChecks[dir] = `error: ${e?.message ?? e}`;
+      }
+    }
+
+    return {
+      ok: true,
+      host: process.env.SFTP_HOST,
+      port: Number(process.env.SFTP_PORT) || 22,
+      cwd,
+      rootEntries,
+      dirChecks,
+      hint: 'dirChecks 중 true 인 경로를 SFTP_REMOTE_DIR 로 설정',
+    };
+  } catch (err) {
+    return {
+      ok: false,
+      host: process.env.SFTP_HOST,
+      port: Number(process.env.SFTP_PORT) || 22,
+      message: err?.message ?? String(err),
+      code: err?.code,
+      hint:
+        'Authentication failed → 계정/비밀번호. ECONNREFUSED/ETIMEDOUT → 호스트·포트 또는 가비아 외부 SFTP 차단',
+    };
+  } finally {
+    try {
+      await client.end();
+    } catch {
+      // noop
+    }
+  }
+}
+
 module.exports = {
   sftpConfigured,
   getPublicBaseUrl,
   getRemoteDirCandidates,
   uploadProfileJpeg,
+  testSftpConnection,
 };

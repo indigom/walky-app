@@ -5,6 +5,7 @@ const {
   profileUploadMiddleware,
   handleProfilePost,
   handleProfileGet,
+  handleAdminSftpTest,
   handleAdminProfiles,
 } = require('./profile');
 
@@ -39,6 +40,7 @@ app.post('/api/nearby/social', handleNearbySocial);
 
 app.post('/api/profile', profileUploadMiddleware, handleProfilePost);
 app.get('/api/profile', handleProfileGet);
+app.get('/api/admin/sftp-test', handleAdminSftpTest);
 app.get('/api/admin/profiles', handleAdminProfiles);
 
 app.listen(PORT, '0.0.0.0', () => {

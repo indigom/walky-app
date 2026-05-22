@@ -7,7 +7,11 @@ const {
   upsertProfile,
   listProfiles,
 } = require('./profileStore');
-const { sftpConfigured, uploadProfileJpeg } = require('./profileSftp');
+const {
+  sftpConfigured,
+  uploadProfileJpeg,
+  testSftpConnection,
+} = require('./profileSftp');
 
 const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
 
@@ -71,7 +75,9 @@ async function handleProfilePost(req, res) {
       console.error('profile upload failed:', detail);
       return res.status(502).json({
         error: 'Failed to store profile photo',
-        hint: 'Check Railway SFTP_* variables and Gabia SFTP_REMOTE_DIR (see Deploy Logs)',
+        detail,
+        hint:
+          'Railway Deploy Logs 의 SFTP 메시지 확인. GET /api/admin/sftp-test 로 연결·경로 점검. 가비아가 Railway IP SFTP 차단 시 FileZilla(PC)는 되고 서버만 실패할 수 있음',
       });
     }
   }
@@ -110,16 +116,31 @@ function handleProfileGet(req, res) {
 /**
  * GET /api/admin/profiles — Header: x-walky-admin-key
  */
-function handleAdminProfiles(req, res) {
+function requireAdminKey(req, res) {
   const expected = process.env.ADMIN_API_KEY?.trim();
   if (!expected) {
-    return res.status(503).json({ error: 'Admin API disabled' });
+    res.status(503).json({ error: 'Admin API disabled (set ADMIN_API_KEY)' });
+    return null;
   }
-
   const key = req.get('x-walky-admin-key')?.trim();
   if (!key || key !== expected) {
-    return res.status(401).json({ error: 'Unauthorized' });
+    res.status(401).json({ error: 'Unauthorized' });
+    return null;
   }
+  return expected;
+}
+
+/**
+ * GET /api/admin/sftp-test — Header: x-walky-admin-key
+ */
+async function handleAdminSftpTest(_req, res) {
+  if (!requireAdminKey(_req, res)) return;
+  const result = await testSftpConnection();
+  return res.status(result.ok ? 200 : 502).json(result);
+}
+
+function handleAdminProfiles(req, res) {
+  if (!requireAdminKey(req, res)) return;
 
   const limit = Number(req.query?.limit) || 200;
   const profiles = listProfiles({ limit });
@@ -136,5 +157,6 @@ module.exports = {
   profileUploadMiddleware,
   handleProfilePost,
   handleProfileGet,
+  handleAdminSftpTest,
   handleAdminProfiles,
 };
