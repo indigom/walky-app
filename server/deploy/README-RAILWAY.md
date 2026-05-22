@@ -138,6 +138,37 @@ EXPO_PUBLIC_NEARBY_WALKER_API_URL=https://api.walky.co.kr/api/nearby/presence
 | `/health` 404 | 도메인 뒤에 `/health` 정확히 |
 | 앱만 API 실패 | `.env` URL, `npx expo start --clear` |
 | manifest 안 열림 | 가비아 `dogs/` 경로·HTTPS |
+| **`/health`에 Walky 앱 화면** | Root Directory가 비어 있음 → 루트(Expo) 배포됨 → `server`로 변경 후 Redeploy |
+| **Application failed to respond** | 아래 「502 / failed to respond」 참고 |
+
+### 502 / Application failed to respond
+
+Railway가 **프로세스에 연결하지 못할 때** 나옵니다. **Deployments → 최신 배포 → View Logs** (또는 **Deploy Logs** / **HTTP Logs**)를 먼저 봅니다.
+
+**로그에 이렇게 나오면 성공:**
+
+```text
+Walky API listening on http://0.0.0.0:XXXX
+```
+
+**Settings 다시 확인:**
+
+| 항목 | 값 |
+|------|-----|
+| Source Repo | `indigom/walky-app` ( `/server` 붙이지 않음 ) |
+| **Root Directory** | `server` |
+| **Start Command** | `npm start` 또는 `node index.js` |
+| Variables `PORT` | **직접 넣지 않음** (Railway가 자동 주입) |
+
+**자주 하는 실수**
+
+- Root Directory = `server` 인데 Start Command를 `expo start` 로 둠 → 크래시
+- Root Directory 비움 → 예전처럼 Expo가 떠서 `/health`가 앱 화면
+- 도메인이 **옛 서비스**(Expo)에 연결됨 → 서비스 하나만 두고 API 서비스에 Generate Domain
+
+**수정 후:** Deployments → **Redeploy** → 1~2분 뒤 `/health` 재시도.
+
+공식 문서: [Application Failed to Respond](https://docs.railway.com/networking/troubleshooting/application-failed-to-respond)
 
 ---
 
