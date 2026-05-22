@@ -13,15 +13,11 @@ Railway IP에서 가비아 **SFTP(22)** 가 막히면 `502 Failed to store profi
 
 ---
 
-## A. Cloudflare R2 (Railway 권장)
+## A. Cloudflare R2 (Railway 권장) ← **현재 권장**
 
-가비아를 거치지 않고 Railway → R2 로 저장합니다.
+**단계별 설정:** [`README-R2.md`](./README-R2.md)
 
-1. [Cloudflare Dashboard](https://dash.cloudflare.com) → R2 → 버킷 생성  
-2. **API 토큰** (R2 Read/Write) 발급  
-3. 버킷 **Public access** 또는 **커스텀 도메인**으로 공개 URL 확보  
-
-Railway Variables:
+요약 Railway Variables:
 
 ```env
 PROFILE_STORAGE=s3
@@ -34,8 +30,7 @@ S3_PUBLIC_BASE_URL=https://pub-xxxx.r2.dev
 S3_KEY_PREFIX=profiles
 ```
 
-`S3_PUBLIC_BASE_URL` 은 브라우저에서 JPG가 열리는 접두 URL입니다.  
-앱·근처 산책 API는 응답의 `profilePhotoUrl` 을 그대로 사용합니다.
+SFTP 변수는 제거하세요. 앱 `.env` 추가 변경 없음.
 
 ---
 

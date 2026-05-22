@@ -8,6 +8,7 @@
 |------|-----------|-----------|
 | 견종 영상·manifest | `https://walky.co.kr/dogs/corgi/manifest.json` | 가비아 FTP → 웹 루트 `dogs/` |
 | 근처 산책 API | `https://xxxx.up.railway.app/api/nearby/presence` | Railway (`server/` 폴더) |
+| 프로필 사진 | `https://pub-….r2.dev/profiles/w_….jpg` | **Cloudflare R2** (가비아 SFTP 차단 시) → [`README-R2.md`](./README-R2.md) |
 
 ---
 

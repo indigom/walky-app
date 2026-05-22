@@ -1,4 +1,5 @@
 const express = require('express');
+const { getStorageSummary } = require('./profileStorage');
 const { handleNearbyPresence } = require('./nearbyPresence');
 const { handleNearbySocial } = require('./nearbySocial');
 const {
@@ -29,7 +30,12 @@ app.use((req, res, next) => {
 });
 
 app.get('/health', (_req, res) => {
-  res.json({ ok: true, service: 'walky-api', port: PORT });
+  res.json({
+    ok: true,
+    service: 'walky-api',
+    port: PORT,
+    profileStorage: getStorageSummary(),
+  });
 });
 
 app.get('/', (_req, res) => {
