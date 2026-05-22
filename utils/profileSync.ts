@@ -2,6 +2,10 @@ import * as FileSystem from 'expo-file-system/legacy';
 import { Platform } from 'react-native';
 
 import { PROFILE_API_URL } from '../constants/profileApi';
+import {
+  PROFILE_UPLOAD_KEY,
+  PROFILE_UPLOAD_URL,
+} from '../constants/profileUploadApi';
 import type { UserProfile } from '../types';
 import { getWalkyUserId } from './walkyUserId';
 
@@ -34,6 +38,18 @@ function parseProfileResponse(body: string): ProfileSyncResult | null {
   }
 }
 
+function parseGabiaUploadResponse(body: string): string | null {
+  try {
+    const data = JSON.parse(body) as Record<string, unknown>;
+    if (data.ok !== true) return null;
+    return typeof data.profilePhotoUrl === 'string'
+      ? data.profilePhotoUrl
+      : null;
+  } catch {
+    return null;
+  }
+}
+
 /** RN FormData용 로컬 파일 URI */
 function normalizeUploadUri(uri: string): string {
   const trimmed = uri.trim();
@@ -48,12 +64,16 @@ function normalizeUploadUri(uri: string): string {
 
 async function syncNicknameOnly(
   userId: string,
-  nickname?: string
+  nickname?: string,
+  profilePhotoUrl?: string
 ): Promise<ProfileSyncOutcome> {
   const form = new FormData();
   form.append('userId', userId);
   if (nickname) {
     form.append('nickname', nickname);
+  }
+  if (profilePhotoUrl) {
+    form.append('profilePhotoUrl', profilePhotoUrl);
   }
 
   const res = await fetch(PROFILE_API_URL, {
@@ -72,11 +92,61 @@ async function syncNicknameOnly(
   return { ok: true, data };
 }
 
+async function uploadPhotoToGabia(
+  userId: string,
+  localPhotoUri: string
+): Promise<ProfileSyncOutcome> {
+  if (!PROFILE_UPLOAD_URL) {
+    return { ok: false, message: 'PROFILE_UPLOAD_URL not configured' };
+  }
+  if (!PROFILE_UPLOAD_KEY) {
+    return { ok: false, message: 'PROFILE_UPLOAD_KEY not configured' };
+  }
+
+  const fileUri = normalizeUploadUri(localPhotoUri);
+  const info = await FileSystem.getInfoAsync(fileUri);
+  if (!info.exists) {
+    return { ok: false, message: 'Local photo file missing' };
+  }
+
+  const result = await FileSystem.uploadAsync(PROFILE_UPLOAD_URL, fileUri, {
+    httpMethod: 'POST',
+    uploadType: FileSystem.FileSystemUploadType.MULTIPART,
+    fieldName: 'photo',
+    mimeType: 'image/jpeg',
+    parameters: { userId },
+    headers: { 'x-walky-upload-key': PROFILE_UPLOAD_KEY },
+  });
+
+  if (result.status < 200 || result.status >= 300) {
+    return {
+      ok: false,
+      message: result.body || `Gabia upload HTTP ${result.status}`,
+    };
+  }
+
+  const profilePhotoUrl = parseGabiaUploadResponse(result.body);
+  if (!profilePhotoUrl) {
+    return { ok: false, message: 'Invalid Gabia upload response' };
+  }
+  return { ok: true, data: { profilePhotoUrl } };
+}
+
 async function syncWithPhoto(
   userId: string,
   localPhotoUri: string,
   nickname?: string
 ): Promise<ProfileSyncOutcome> {
+  if (PROFILE_UPLOAD_URL) {
+    const gabia = await uploadPhotoToGabia(userId, localPhotoUri);
+    if (!gabia.ok) return gabia;
+    return syncNicknameOnly(
+      userId,
+      nickname,
+      gabia.data.profilePhotoUrl
+    );
+  }
+
   const fileUri = normalizeUploadUri(localPhotoUri);
 
   const info = await FileSystem.getInfoAsync(fileUri);
@@ -112,7 +182,9 @@ async function syncWithPhoto(
 }
 
 /**
- * 닉네임·로컬 사진을 Railway → 가비아 SFTP로 업로드.
+ * 닉네임·프로필 사진을 서버에 동기화.
+ * - EXPO_PUBLIC_PROFILE_UPLOAD_URL 설정 시: 사진 → 가비아 HTTPS, 메타 → Railway
+ * - 미설정 시: Railway가 S3/R2 또는 SFTP로 저장
  */
 export async function syncUserProfileToServer(input: {
   nickname?: string;

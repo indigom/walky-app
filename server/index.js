@@ -6,6 +6,7 @@ const {
   handleProfilePost,
   handleProfileGet,
   handleAdminSftpTest,
+  handleAdminStorageTest,
   handleAdminProfiles,
 } = require('./profile');
 
@@ -19,7 +20,7 @@ app.use((req, res, next) => {
   res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
   res.setHeader(
     'Access-Control-Allow-Headers',
-    'Content-Type, x-walky-admin-key'
+    'Content-Type, x-walky-admin-key, x-walky-upload-key'
   );
   if (req.method === 'OPTIONS') {
     return res.sendStatus(204);
@@ -41,6 +42,7 @@ app.post('/api/nearby/social', handleNearbySocial);
 app.post('/api/profile', profileUploadMiddleware, handleProfilePost);
 app.get('/api/profile', handleProfileGet);
 app.get('/api/admin/sftp-test', handleAdminSftpTest);
+app.get('/api/admin/storage-test', handleAdminStorageTest);
 app.get('/api/admin/profiles', handleAdminProfiles);
 
 app.listen(PORT, '0.0.0.0', () => {

@@ -20,6 +20,41 @@ function normalizeNickname(nickname) {
   return n;
 }
 
+/** 앱·가비아 업로드 API가 반환한 공개 HTTPS URL */
+function normalizeProfilePhotoUrl(url) {
+  if (url == null || url === '') return undefined;
+  if (typeof url !== 'string') return null;
+  const u = url.trim();
+  if (u.length > 512) return null;
+  let parsed;
+  try {
+    parsed = new URL(u);
+  } catch {
+    return null;
+  }
+  if (parsed.protocol !== 'https:') return null;
+
+  const allowedPrefixes = [
+    process.env.PROFILE_PUBLIC_BASE_URL,
+    process.env.S3_PUBLIC_BASE_URL,
+    'https://walky.co.kr/profile',
+  ]
+    .filter(Boolean)
+    .map((b) => b.replace(/\/+$/, ''));
+
+  const href = parsed.href.split('?')[0];
+  if (allowedPrefixes.some((base) => href.startsWith(`${base}/`))) {
+    return href;
+  }
+  if (
+    parsed.hostname === 'walky.co.kr' &&
+    parsed.pathname.startsWith('/profile/')
+  ) {
+    return href;
+  }
+  return null;
+}
+
 function getProfile(userId) {
   const id = normalizeUserId(userId);
   if (!id) return null;
@@ -56,6 +91,7 @@ function listProfiles({ limit = 200 } = {}) {
 module.exports = {
   normalizeUserId,
   normalizeNickname,
+  normalizeProfilePhotoUrl,
   getProfile,
   upsertProfile,
   listProfiles,

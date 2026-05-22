@@ -3,15 +3,18 @@ const sharp = require('sharp');
 const {
   normalizeUserId,
   normalizeNickname,
+  normalizeProfilePhotoUrl,
   getProfile,
   upsertProfile,
   listProfiles,
 } = require('./profileStore');
 const {
-  sftpConfigured,
+  isPhotoStorageConfigured,
   uploadProfileJpeg,
-  testSftpConnection,
-} = require('./profileSftp');
+  getStorageSummary,
+  testPhotoStorage,
+} = require('./profileStorage');
+const { testSftpConnection } = require('./profileSftp');
 
 const MAX_UPLOAD_BYTES = 3 * 1024 * 1024;
 
@@ -39,7 +42,7 @@ async function processPhotoBuffer(buffer) {
 }
 
 /**
- * POST /api/profile — multipart: userId, nickname?, photo?
+ * POST /api/profile — multipart: userId, nickname?, photo? | profilePhotoUrl?
  */
 async function handleProfilePost(req, res) {
   const userId = normalizeUserId(req.body?.userId);
@@ -52,6 +55,15 @@ async function handleProfilePost(req, res) {
     return res.status(400).json({ error: 'Invalid nickname (1–20 chars)' });
   }
 
+  const photoUrlFromClient = normalizeProfilePhotoUrl(req.body?.profilePhotoUrl);
+  if (
+    req.body?.profilePhotoUrl != null &&
+    req.body.profilePhotoUrl !== '' &&
+    !photoUrlFromClient
+  ) {
+    return res.status(400).json({ error: 'Invalid profilePhotoUrl' });
+  }
+
   const existing = getProfile(userId);
   let profilePhotoUrl = existing?.profilePhotoUrl;
 
@@ -61,9 +73,11 @@ async function handleProfilePost(req, res) {
       return res.status(400).json({ error: 'Unsupported image type' });
     }
 
-    if (!sftpConfigured()) {
+    if (!isPhotoStorageConfigured()) {
       return res.status(503).json({
-        error: 'Profile photo storage not configured (SFTP)',
+        error: 'Profile photo storage not configured',
+        hint: 'Railway: PROFILE_STORAGE=s3 + S3_* (R2). 가비아: gabia-profile-upload + GABIA_* 또는 앱 EXPO_PUBLIC_PROFILE_UPLOAD_URL',
+        ...getStorageSummary(),
       });
     }
 
@@ -76,10 +90,13 @@ async function handleProfilePost(req, res) {
       return res.status(502).json({
         error: 'Failed to store profile photo',
         detail,
+        storage: getStorageSummary(),
         hint:
-          'Railway Deploy Logs 의 SFTP 메시지 확인. GET /api/admin/sftp-test 로 연결·경로 점검. 가비아가 Railway IP SFTP 차단 시 FileZilla(PC)는 되고 서버만 실패할 수 있음',
+          '가비아 SFTP 차단 시 PROFILE_STORAGE=s3 (R2) 또는 가비아 HTTPS 업로드 API. GET /api/admin/storage-test',
       });
     }
+  } else if (photoUrlFromClient) {
+    profilePhotoUrl = photoUrlFromClient;
   }
 
   const record = upsertProfile(userId, {
@@ -113,9 +130,6 @@ function handleProfileGet(req, res) {
   return res.json({ ok: true, ...record });
 }
 
-/**
- * GET /api/admin/profiles — Header: x-walky-admin-key
- */
 function requireAdminKey(req, res) {
   const expected = process.env.ADMIN_API_KEY?.trim();
   if (!expected) {
@@ -130,12 +144,15 @@ function requireAdminKey(req, res) {
   return expected;
 }
 
-/**
- * GET /api/admin/sftp-test — Header: x-walky-admin-key
- */
-async function handleAdminSftpTest(_req, res) {
-  if (!requireAdminKey(_req, res)) return;
+async function handleAdminSftpTest(req, res) {
+  if (!requireAdminKey(req, res)) return;
   const result = await testSftpConnection();
+  return res.status(result.ok ? 200 : 502).json(result);
+}
+
+async function handleAdminStorageTest(req, res) {
+  if (!requireAdminKey(req, res)) return;
+  const result = await testPhotoStorage();
   return res.status(result.ok ? 200 : 502).json(result);
 }
 
@@ -149,7 +166,7 @@ function handleAdminProfiles(req, res) {
     ok: true,
     count: profiles.length,
     profiles,
-    sftpConfigured: sftpConfigured(),
+    storage: getStorageSummary(),
   });
 }
 
@@ -158,5 +175,6 @@ module.exports = {
   handleProfilePost,
   handleProfileGet,
   handleAdminSftpTest,
+  handleAdminStorageTest,
   handleAdminProfiles,
 };

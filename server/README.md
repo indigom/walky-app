@@ -64,30 +64,19 @@ npm run generate:ppt:profile
 - 에셋: `https://walky.co.kr/dogs/{breed}/manifest.json`
 - API: `https://walky.co.kr/api/nearby/presence` (또는 Railway)
 - 노크·대화: `/api/nearby/social`
-- **프로필:** `POST /api/profile` (닉네임 + 사진 → **가비아 SFTP** `profiles/`)
+- **프로필:** `POST /api/profile` (닉네임 + 사진 또는 `profilePhotoUrl`)
 
-### 프로필 SFTP (Railway Variables)
+### 프로필 사진 저장 (가비아 SFTP 차단 시)
 
-`server/.env.example` 참고. Railway에 설정:
+**`server/deploy/README-PROFILE-STORAGE.md`** — R2(S3), 가비아 HTTPS, 앱 직접 업로드.
 
-- `SFTP_HOST`, `SFTP_PORT`, `SFTP_USER`, `SFTP_PASSWORD`
-- `SFTP_REMOTE_DIR` — FileZilla 원격 경로 (예: `/www_root/profiles`)
-- `PROFILE_PUBLIC_BASE_URL` — 웹 공개 URL (예: `https://walky.co.kr/profile`)
-- `ADMIN_API_KEY` — 운영자 목록 `GET /api/admin/profiles` (헤더 `x-walky-admin-key`)
+| `PROFILE_STORAGE` | 용도 |
+|-------------------|------|
+| `s3` | Cloudflare R2 등 (Railway 권장) |
+| `gabia-http` | Railway → `walky.co.kr` HTTPS 업로드 API |
+| `sftp` | PC FileZilla만 되고 Railway는 막힐 때 비권장 |
 
-가비아 웹에서 `https://walky.co.kr/profile/w_xxx.jpg` 가 열리는지 확인.
-
-**502 `Failed to store profile photo`** — Railway → 가비아 SFTP 실패. **Deployments → Logs** 에 `SFTP upload error` 확인.
-
-| 확인 | 내용 |
-|------|------|
-| `SFTP_HOST` | 가비아 SFTP 호스트 (패널 값, `walky.co.kr` 또는 `ftp.…`) |
-| `SFTP_USER` / `SFTP_PASSWORD` | SFTP 전용 계정 (웹 FTP와 동일할 수 있음) |
-| `SFTP_REMOTE_DIR` | FileZilla **원격 사이트** 경로 (예: `/www_root/profiles`) |
-| `PROFILE_PUBLIC_BASE_URL` | 브라우저 URL 접두 (예: `https://walky.co.kr/profile`) |
-| 외부 SFTP 허용 | 가비아에서 **외부 IP SFTP** 차단 여부 (Railway IP는 고정 아님 → 전체 허용 필요할 수 있음) |
-
-PC FileZilla로 같은 계정·경로에 업로드 테스트 후, 그 경로를 `SFTP_REMOTE_DIR` 에 넣으세요.
+진단: `GET /api/admin/storage-test` (헤더 `x-walky-admin-key`)
 
 운영자 목록 예:
 
