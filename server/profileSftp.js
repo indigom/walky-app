@@ -10,7 +10,7 @@ function sftpConfigured() {
 
 function getPublicBaseUrl() {
   const base =
-    process.env.PROFILE_PUBLIC_BASE_URL ?? 'https://walky.co.kr/profiles';
+    process.env.PROFILE_PUBLIC_BASE_URL ?? 'https://walky.co.kr/profile';
   return base.replace(/\/+$/, '');
 }
 
@@ -18,8 +18,8 @@ function getPublicBaseUrl() {
 function getRemoteDirCandidates() {
   const configured = process.env.SFTP_REMOTE_DIR?.trim();
   const defaults = [
-    'www_root/profiles',
     '/www_root/profiles',
+    'www_root/profiles',
     'www/profiles',
     '/www/profiles',
     'public_html/profiles',
