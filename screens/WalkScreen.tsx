@@ -169,6 +169,9 @@ export function WalkScreen({
   const pedometerSessionStartRef = useRef<number | null>(null);
   const gpsMetersRef = useRef(0);
   const lastFixRef = useRef<{ lat: number; lon: number } | null>(null);
+  const lastGpsCoordsRef = useRef<{ latitude: number; longitude: number } | null>(
+    null
+  );
   const nearbyLastHeartbeatRef = useRef(0);
   const pushTokenRef = useRef<string | null>(null);
   const lastCheerIndexRef = useRef(-1);
@@ -306,6 +309,34 @@ export function WalkScreen({
         nearbyWalkerAlerts: enabled,
       },
     }));
+  }
+
+  function handleOpenNearbyList() {
+    if (!canUseNearbyWalkerAlerts) {
+      Alert.alert(
+        '근처 회원',
+        '근처 산책자를 찾으려면 프로필에 성별이 필요해요. 설정에서 회원 정보를 확인해 주세요.'
+      );
+      return;
+    }
+
+    setNearbyListVisible(true);
+
+    const coords = lastGpsCoordsRef.current;
+    if (coords && !isPausedRef.current) {
+      void reportNearbyWalkerPresence(dogState.user, {
+        latitude: coords.latitude,
+        longitude: coords.longitude,
+        gender: dogState.user!.gender!,
+        dogName: dogState.name?.trim() || '강아지',
+        nickname: dogState.user?.nickname,
+        pushToken: pushTokenRef.current,
+      }).then((result) => {
+        if (result?.nearbyWalkers) {
+          setNearbyWalkers(result.nearbyWalkers);
+        }
+      });
+    }
   }
 
   useEffect(() => {
@@ -476,6 +507,7 @@ export function WalkScreen({
           if (acc > MAX_HORIZONTAL_ACCURACY_M) return;
 
           const { latitude, longitude } = loc.coords;
+          lastGpsCoordsRef.current = { latitude, longitude };
           const prev = lastFixRef.current;
           lastFixRef.current = { lat: latitude, lon: longitude };
           if (!prev) return;
@@ -789,16 +821,16 @@ export function WalkScreen({
         pointerEvents="none"
       />
 
-      <SafeAreaView style={styles.uiLayer}>
-        <View style={styles.topSection}>
-          <View style={styles.topBar}>
+      <SafeAreaView style={styles.uiLayer} pointerEvents="box-none">
+        <View style={styles.topSection} pointerEvents="box-none">
+          <View style={styles.topBar} pointerEvents="auto">
             <Pressable
               style={[
                 styles.nearbyListButton,
                 !canUseNearbyWalkerAlerts && styles.nearbyListButtonDisabled,
               ]}
-              onPress={() => setNearbyListVisible(true)}
-              disabled={!canUseNearbyWalkerAlerts}
+              onPress={handleOpenNearbyList}
+              hitSlop={12}
             >
               <Text style={styles.nearbyListButtonText}>근처</Text>
               {nearbyWalkers.length > 0 ? (
@@ -831,7 +863,7 @@ export function WalkScreen({
           ) : null}
         </View>
 
-        <View style={styles.bottomSection}>
+        <View style={styles.bottomSection} pointerEvents="auto">
           <Text style={styles.statsLine}>
             {formatNumber(distanceKm)} km · {steps.toLocaleString()}보 ·{' '}
             {Math.round(calories)} kcal
@@ -890,16 +922,23 @@ export function WalkScreen({
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#000' },
-  videoLayer: { ...StyleSheet.absoluteFillObject },
+  videoLayer: {
+    ...StyleSheet.absoluteFillObject,
+    zIndex: 0,
+    ...(Platform.OS === 'android' ? { elevation: 0 } : null),
+  },
   bottomGradient: {
     position: 'absolute',
     left: 0,
     right: 0,
     bottom: 0,
     height: '52%',
+    zIndex: 1,
   },
   uiLayer: {
     flex: 1,
+    zIndex: 10,
+    ...(Platform.OS === 'android' ? { elevation: 10 } : null),
     justifyContent: 'space-between',
     paddingHorizontal: 20,
     paddingTop: 8,

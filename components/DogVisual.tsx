@@ -486,6 +486,7 @@ export function DogVisual({
             player={basePlayerA}
             style={styles.video}
             contentFit="cover"
+            nativeControls={false}
             allowsFullscreen={false}
             allowsPictureInPicture={false}
           />
@@ -499,6 +500,7 @@ export function DogVisual({
             player={basePlayerB}
             style={styles.video}
             contentFit="cover"
+            nativeControls={false}
             allowsFullscreen={false}
             allowsPictureInPicture={false}
           />
@@ -513,6 +515,7 @@ export function DogVisual({
           player={actionPlayer}
           style={styles.video}
           contentFit="cover"
+          nativeControls={false}
           allowsFullscreen={false}
           allowsPictureInPicture={false}
         />
