@@ -11,6 +11,7 @@ import {
 import * as ImagePicker from 'expo-image-picker';
 
 import type { UserProfile } from '../types';
+import { getProfileImagePickerOptions } from '../utils/profileImagePicker';
 import { resolveProfilePhotoUri } from '../utils/profilePhotoProfile';
 
 type Props = {
@@ -71,12 +72,9 @@ export function ProfilePhotoPickerSection({
   async function pickFromLibrary() {
     if (disabled || !(await requestLibraryPermission())) return;
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
-    });
+    const result = await ImagePicker.launchImageLibraryAsync(
+      getProfileImagePickerOptions()
+    );
 
     if (!result.canceled && result.assets[0]?.uri) {
       updatePreview(result.assets[0].uri);
@@ -86,11 +84,9 @@ export function ProfilePhotoPickerSection({
   async function takePhoto() {
     if (disabled || !(await requestCameraPermission())) return;
 
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
-    });
+    const result = await ImagePicker.launchCameraAsync(
+      getProfileImagePickerOptions()
+    );
 
     if (!result.canceled && result.assets[0]?.uri) {
       updatePreview(result.assets[0].uri);

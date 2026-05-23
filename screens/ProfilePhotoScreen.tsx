@@ -15,6 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 
 import { PrimaryButton } from '../components/PrimaryButton';
+import { getProfileImagePickerOptions } from '../utils/profileImagePicker';
 import { persistProfilePhoto } from '../utils/profilePhotoStorage';
 
 export type ProfilePhotoSubmit = {
@@ -73,12 +74,9 @@ export function ProfilePhotoScreen({
   async function pickFromLibrary() {
     if (!(await requestLibraryPermission())) return;
 
-    const result = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ['images'],
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
-    });
+    const result = await ImagePicker.launchImageLibraryAsync(
+      getProfileImagePickerOptions()
+    );
 
     if (!result.canceled && result.assets[0]?.uri) {
       setPreviewUri(result.assets[0].uri);
@@ -88,11 +86,9 @@ export function ProfilePhotoScreen({
   async function takePhoto() {
     if (!(await requestCameraPermission())) return;
 
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      aspect: [1, 1],
-      quality: 0.85,
-    });
+    const result = await ImagePicker.launchCameraAsync(
+      getProfileImagePickerOptions()
+    );
 
     if (!result.canceled && result.assets[0]?.uri) {
       setPreviewUri(result.assets[0].uri);
