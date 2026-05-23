@@ -6,7 +6,6 @@ import {
   Keyboard,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -15,7 +14,10 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
+
 import { PrimaryButton } from '../components/PrimaryButton';
+import { ONBOARDING_SCREEN_BG } from '../constants/onboardingTheme';
 
 type Props = {
   onSubmit: (data: {
@@ -82,14 +84,16 @@ export function UserInfoScreen({ onSubmit }: Props) {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <KeyboardAvoidingView
           style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
         >
           <ScrollView
             ref={scrollRef}
             contentContainerStyle={styles.container}
             keyboardShouldPersistTaps="handled"
-            keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+            keyboardDismissMode={
+              Platform.OS === 'ios' ? 'interactive' : 'on-drag'
+            }
             showsVerticalScrollIndicator={false}
           >
             <View style={styles.content}>
@@ -191,7 +195,7 @@ export function UserInfoScreen({ onSubmit }: Props) {
 
               <View style={styles.buttonWrap}>
                 <PrimaryButton
-                  label="시작하기"
+                  label="다음"
                   onPress={handleSubmit}
                   disabled={!isFormValid}
                 />
@@ -205,7 +209,7 @@ export function UserInfoScreen({ onSubmit }: Props) {
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#000' },
+  safeArea: { flex: 1, backgroundColor: ONBOARDING_SCREEN_BG },
   flex: { flex: 1 },
   container: {
     flexGrow: 1,
@@ -225,7 +229,7 @@ const styles = StyleSheet.create({
   subtitle: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#A7A7A7',
+    color: 'rgba(255,255,255,0.88)',
     textAlign: 'center',
     marginBottom: 28,
     paddingHorizontal: 8,

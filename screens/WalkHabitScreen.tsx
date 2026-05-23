@@ -1,10 +1,10 @@
 import { useRef, useState } from 'react';
 import {
   Alert,
+  ImageBackground,
   Keyboard,
   KeyboardAvoidingView,
   Platform,
-  SafeAreaView,
   ScrollView,
   StyleSheet,
   Text,
@@ -12,9 +12,11 @@ import {
   TouchableWithoutFeedback,
   View,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NearbyWalkerAlertsSwitch } from '../components/NearbyWalkerAlertsSwitch';
 import { PrimaryButton } from '../components/PrimaryButton';
+import { MEMBER_INFO_BG } from '../constants/memberInfoBackground';
 import type { UserProfile } from '../types';
 import { formatWalkTimeLabel } from '../utils/walkHabitProfile';
 
@@ -85,20 +87,25 @@ export function WalkHabitScreen({ onSubmit }: Props) {
   }
 
   return (
-    <SafeAreaView style={styles.safeArea}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
-        >
-          <ScrollView
-            ref={scrollRef}
-            contentContainerStyle={styles.container}
-            keyboardShouldPersistTaps="handled"
-            showsVerticalScrollIndicator={false}
+    <ImageBackground
+      source={MEMBER_INFO_BG}
+      style={styles.root}
+      resizeMode="cover"
+    >
+      <SafeAreaView style={styles.safeArea}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <KeyboardAvoidingView
+            style={styles.flex}
+            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+            keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
           >
-            <View style={styles.content}>
+            <ScrollView
+              ref={scrollRef}
+              contentContainerStyle={styles.container}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+              <View style={styles.content}>
               <Text style={styles.title}>평소 산책 습관</Text>
               <Text style={styles.subtitle}>
                 주로 산책하는 시간과 거리를 알려주세요. 그 시간에 산책 알림을 보내 드릴게요.
@@ -162,26 +169,29 @@ export function WalkHabitScreen({ onSubmit }: Props) {
                 <NearbyWalkerAlertsSwitch
                   value={nearbyWalkerAlerts}
                   onValueChange={setNearbyWalkerAlerts}
+                  lightDescription
                 />
               </View>
 
-              <View style={styles.buttonWrap}>
-                <PrimaryButton
-                  label="완료"
-                  onPress={handleSubmit}
-                  disabled={!isFormValid}
-                />
+                <View style={styles.buttonWrap}>
+                  <PrimaryButton
+                    label="완료"
+                    onPress={handleSubmit}
+                    disabled={!isFormValid}
+                  />
+                </View>
               </View>
-            </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
-    </SafeAreaView>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </TouchableWithoutFeedback>
+      </SafeAreaView>
+    </ImageBackground>
   );
 }
 
 const styles = StyleSheet.create({
-  safeArea: { flex: 1, backgroundColor: '#000' },
+  root: { flex: 1 },
+  safeArea: { flex: 1, backgroundColor: 'transparent' },
   flex: { flex: 1 },
   container: {
     flexGrow: 1,
@@ -194,14 +204,14 @@ const styles = StyleSheet.create({
   title: {
     fontSize: 26,
     fontWeight: '700',
-    color: '#fff',
+    color: '#ffffff',
     marginBottom: 10,
     textAlign: 'center',
   },
   subtitle: {
     fontSize: 14,
     lineHeight: 20,
-    color: '#A7A7A7',
+    color: '#ffffff',
     textAlign: 'center',
     marginBottom: 28,
     paddingHorizontal: 8,
@@ -210,7 +220,7 @@ const styles = StyleSheet.create({
   label: {
     fontSize: 14,
     fontWeight: '600',
-    color: '#fff',
+    color: '#ffffff',
     marginBottom: 8,
   },
   timeRow: {
@@ -219,7 +229,7 @@ const styles = StyleSheet.create({
   },
   timeInput: { flex: 1 },
   timeColon: {
-    color: '#fff',
+    color: '#ffffff',
     fontSize: 22,
     fontWeight: '700',
     marginHorizontal: 10,
@@ -235,7 +245,7 @@ const styles = StyleSheet.create({
   hint: {
     marginTop: 8,
     fontSize: 13,
-    color: '#8E8E93',
+    color: '#ffffff',
     lineHeight: 18,
   },
   buttonWrap: { marginTop: 12 },

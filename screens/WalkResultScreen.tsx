@@ -1,11 +1,11 @@
 import {
   ImageBackground,
-  SafeAreaView,
   StyleSheet,
   Text,
   View,
   ScrollView,
 } from 'react-native';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { getBreedWalkResultBgSource } from '../constants/breedWalkResultImages';
 import type { DogState, WalkSummary } from '../types';

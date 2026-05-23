@@ -1,2 +1,2 @@
-/** 원격 에셋 호스트 (trailing slash 없음) */
-export const WALKY_ASSET_ORIGIN = 'https://walky-asset.vercel.app';
+/** @deprecated 직접 import 대신 `walkyServer` 사용 권장 */
+export { WALKY_ASSET_ORIGIN, WALKY_ORIGIN } from './walkyServer';

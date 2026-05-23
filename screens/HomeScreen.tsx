@@ -20,10 +20,11 @@ import {
   View,
 } from 'react-native';
 
+import { Feather } from '@expo/vector-icons';
 import { useIsFocused } from '@react-navigation/native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
-import { NearbyWalkerAlertsSwitch } from '../components/NearbyWalkerAlertsSwitch';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { DogVisual } from '../components/DogVisual';
 
@@ -59,6 +60,7 @@ type Props = {
   setDogState: Dispatch<SetStateAction<DogState>>;
   onStartWalk: () => void;
   onOpenWalkHistory: () => void;
+  onOpenSettings: () => void;
   todayTotal?: TodayWalkTotal;
   dogManifest: DogAssetManifest | null;
 };
@@ -149,10 +151,12 @@ export function HomeScreen({
   setDogState,
   onStartWalk,
   onOpenWalkHistory,
+  onOpenSettings,
   todayTotal,
   dogManifest,
 }: Props) {
   const isFocused = useIsFocused();
+  const insets = useSafeAreaInsets();
 
   const [action, setAction] = useState<DogAction>(null);
   const [actionMeta, setActionMeta] = useState<ResolvedPlayback | null>(null);
@@ -171,19 +175,6 @@ export function HomeScreen({
 
   const walkPreviewText =
     total.walkCount === 0 ? '오늘은 아직 산책 기록이 없어요.' : null;
-
-  const nearbyWalkerAlertsOn = dogState.user?.nearbyWalkerAlerts !== false;
-  const canUseNearbyWalkerAlerts = !!dogState.user?.gender;
-
-  function setNearbyWalkerAlerts(enabled: boolean) {
-    setDogState((prev) => ({
-      ...prev,
-      user: {
-        ...(prev.user ?? {}),
-        nearbyWalkerAlerts: enabled,
-      },
-    }));
-  }
 
   const ambientState = useMemo(() => {
     if (!dogManifest || !dogState.breed) return null;
@@ -632,6 +623,16 @@ export function HomeScreen({
         ))}
       </View>
 
+      <Pressable
+        style={[styles.settingsButton, { top: insets.top + 4 }]}
+        onPress={onOpenSettings}
+        hitSlop={12}
+        accessibilityLabel="설정"
+        accessibilityRole="button"
+      >
+        <Feather name="settings" size={22} color="#ffffff" />
+      </Pressable>
+
       <TouchableOpacity
         style={[styles.feedButton, action !== null && styles.feedButtonDisabled]}
         activeOpacity={0.82}
@@ -708,17 +709,13 @@ export function HomeScreen({
                 <Text style={styles.historyButtonText}>기록 자세히 보기</Text>
               </TouchableOpacity>
             </View>
-
-            <View style={styles.nearbyAlertsSection}>
-              <NearbyWalkerAlertsSwitch
-                value={nearbyWalkerAlertsOn}
-                onValueChange={setNearbyWalkerAlerts}
-                disabled={!canUseNearbyWalkerAlerts}
-              />
-            </View>
           </View>
 
-          <PrimaryButton label="산책 가기" onPress={onStartWalk} />
+          <PrimaryButton
+            label="산책 가기"
+            onPress={onStartWalk}
+            style={styles.walkStartButton}
+          />
         </View>
       </View>
     </View>
@@ -749,13 +746,20 @@ const styles = StyleSheet.create({
   heart: {
     position: 'absolute',
   },
+  settingsButton: {
+    position: 'absolute',
+    right: 20,
+    zIndex: 50,
+    elevation: 50,
+  },
   feedButton: {
     position: 'absolute',
-    top: 54,
+    top: '50%',
     right: 22,
     width: 54,
     height: 54,
     borderRadius: 27,
+    marginTop: -27,
     backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -824,11 +828,8 @@ const styles = StyleSheet.create({
     fontWeight: '800',
     color: '#000',
   },
-  nearbyAlertsSection: {
-    marginTop: 14,
-    paddingTop: 14,
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.12)',
+  walkStartButton: {
+    backgroundColor: '#d5ec3b',
   },
   statusBox: {
     backgroundColor: 'rgba(0,0,0,0.42)',

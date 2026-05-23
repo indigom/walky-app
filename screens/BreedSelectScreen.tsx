@@ -3,7 +3,7 @@ import {
   View,
   Text,
   StyleSheet,
-  Image,
+  ImageBackground,
   FlatList,
   Dimensions,
   TouchableOpacity,
@@ -14,7 +14,9 @@ import {
   ActivityIndicator,
   Alert,
 } from 'react-native';
+import { LinearGradient } from 'expo-linear-gradient';
 
+import { getBreedSelectCardImageSource } from '../constants/breedSelectCardImages';
 import type { DogState, Breed } from '../types';
 import {
   downloadBreedAssets,
@@ -28,7 +30,6 @@ type BreedItem = {
   name: string;
   subtitle: string;
   description: string;
-  image: any;
 };
 
 type HeartItem = {
@@ -50,21 +51,18 @@ const DOG_BREEDS: BreedItem[] = [
     name: '웰시코기',
     subtitle: '장난기 많고 활발한 친구',
     description: '짧은 다리로도 누구보다 신나게 하루를 따라와요.',
-    image: require('../assets/dog/corgi.png'),
   },
   {
     id: 'shiba',
     name: '시바견',
     subtitle: '차분하지만 속정 깊은 친구',
     description: '혼자 있는 듯 보여도, 사실은 늘 곁을 신경 쓰는 아이예요.',
-    image: require('../assets/dog/shiba.png'),
   },
   {
     id: 'retriever',
     name: '리트리버',
     subtitle: '밝고 다정한 산책 친구',
     description: '사람을 좋아하고, 함께 걷는 시간을 가장 행복해해요.',
-    image: require('../assets/dog/retriever.png'),
   },
 ];
 
@@ -148,9 +146,12 @@ export function BreedSelectScreen({
     } catch (error) {
       console.log('breed asset download error:', error);
 
+      const detail =
+        error instanceof Error ? error.message : '알 수 없는 오류';
+
       Alert.alert(
         '다운로드 실패',
-        '강아지 영상을 다운로드하지 못했어요. 네트워크 상태를 확인하고 다시 시도해주세요.'
+        `강아지 영상을 다운로드하지 못했어요.\n\n${detail}\n\n서버(walky.co.kr)의 dogs/{견종}/manifest.json 이 깨져 있으면 FTP로 올바른 JSON을 다시 올려 주세요.`
       );
     } finally {
       setDownloading(false);
@@ -160,14 +161,13 @@ export function BreedSelectScreen({
   const renderBreedCard = ({ item }: { item: BreedItem }) => {
     return (
       <View style={styles.slide}>
-        <View style={styles.dogCard}>
+        <ImageBackground
+          source={getBreedSelectCardImageSource(item.id)}
+          style={styles.dogCard}
+          imageStyle={styles.dogCardImage}
+          resizeMode="cover"
+        >
           <Pressable style={styles.dogTouchArea} onPress={handlePet}>
-            <Image
-              source={item.image}
-              style={styles.dogImage}
-              resizeMode="contain"
-            />
-
             {hearts.map(heart => {
               const translateY = heart.anim.interpolate({
                 inputRange: [0, 1],
@@ -203,10 +203,19 @@ export function BreedSelectScreen({
             })}
           </Pressable>
 
-          <Text style={styles.breedName}>{item.name}</Text>
-          <Text style={styles.breedSubtitle}>{item.subtitle}</Text>
-          <Text style={styles.breedDescription}>{item.description}</Text>
-        </View>
+          <LinearGradient
+            colors={['transparent', 'rgba(0,0,0,0.35)', 'rgba(0,0,0,0.78)']}
+            locations={[0.35, 0.65, 1]}
+            style={styles.cardTextGradient}
+            pointerEvents="none"
+          />
+
+          <View style={styles.cardTextBlock} pointerEvents="none">
+            <Text style={styles.breedName}>{item.name}</Text>
+            <Text style={styles.breedSubtitle}>{item.subtitle}</Text>
+            <Text style={styles.breedDescription}>{item.description}</Text>
+          </View>
+        </ImageBackground>
       </View>
     );
   };
@@ -303,30 +312,41 @@ const styles = StyleSheet.create({
     width: width * 0.82,
     minHeight: height * 0.56,
     borderRadius: 36,
-    backgroundColor: '#FFFFFF',
-    alignItems: 'center',
-    paddingTop: 32,
-    paddingHorizontal: 24,
-    paddingBottom: 30,
+    overflow: 'hidden',
+    backgroundColor: '#E8DDD4',
+    justifyContent: 'flex-end',
 
     shadowColor: '#000',
-    shadowOpacity: 0.08,
+    shadowOpacity: 0.12,
     shadowRadius: 20,
     shadowOffset: { width: 0, height: 10 },
     elevation: 5,
   },
 
+  dogCardImage: {
+    borderRadius: 36,
+  },
+
   dogTouchArea: {
-    width: width * 0.68,
-    height: height * 0.32,
-    alignItems: 'center',
-    justifyContent: 'center',
+    ...StyleSheet.absoluteFillObject,
     overflow: 'visible',
   },
 
-  dogImage: {
-    width: '100%',
-    height: '100%',
+  cardTextGradient: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '58%',
+    borderBottomLeftRadius: 36,
+    borderBottomRightRadius: 36,
+  },
+
+  cardTextBlock: {
+    paddingHorizontal: 24,
+    paddingBottom: 28,
+    paddingTop: 16,
+    zIndex: 2,
   },
 
   heart: {
@@ -337,25 +357,26 @@ const styles = StyleSheet.create({
   },
 
   breedName: {
-    marginTop: 18,
     fontSize: 28,
     fontWeight: '800',
-    color: '#2B211C',
+    color: '#FFFFFF',
+    textShadowColor: 'rgba(0,0,0,0.35)',
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 6,
   },
 
   breedSubtitle: {
     marginTop: 8,
     fontSize: 16,
     fontWeight: '600',
-    color: '#B87956',
+    color: '#FCD9B8',
   },
 
   breedDescription: {
-    marginTop: 14,
+    marginTop: 12,
     fontSize: 15,
     lineHeight: 22,
-    textAlign: 'center',
-    color: '#7B675D',
+    color: 'rgba(255,255,255,0.92)',
   },
 
   indicatorWrap: {

@@ -9,15 +9,19 @@
     "ios": "expo run:ios",
     "web": "expo start --web",
     "eas:dev:ios": "eas build --profile development --platform ios",
-    "eas:dev:android": "eas build --profile development --platform android"
+    "eas:dev:android": "eas build --profile development --platform android",
+    "generate:ppt:api": "node server/deploy/scripts/generate-api-overview-ppt.mjs",
+    "generate:ppt:profile": "node server/deploy/scripts/generate-profile-photo-api-ppt.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/native": "^7.2.2",
     "@react-navigation/native-stack": "^7.14.12",
     "expo": "~54.0.33",
+    "expo-blur": "~15.0.8",
     "expo-dev-client": "~6.0.21",
     "expo-file-system": "~19.0.22",
+    "expo-image-picker": "~17.0.11",
     "expo-keep-awake": "~15.0.8",
     "expo-linear-gradient": "^55.0.13",
     "expo-location": "~19.0.8",
@@ -35,6 +39,7 @@
   "devDependencies": {
     "@types/react": "~19.1.0",
     "eas-cli": "^18.12.3",
+    "pptxgenjs": "^4.0.1",
     "typescript": "~5.9.2"
   },
   "private": true

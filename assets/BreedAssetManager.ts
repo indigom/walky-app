@@ -1,11 +1,23 @@
 import * as FileSystem from 'expo-file-system/legacy';
 
 import type { Breed, DogAssetManifest } from '../types';
-import { WALKY_ASSET_ORIGIN } from '../constants/assetServer';
-
-const BASE_URL = `${WALKY_ASSET_ORIGIN}/dogs`;
+import {
+  WALKY_ASSET_FALLBACK_ORIGIN,
+  WALKY_ASSET_ORIGIN,
+} from '../constants/walkyServer';
 
 const LOCAL_BASE = `${FileSystem.documentDirectory}dogs/`;
+
+/** manifest 다운로드에 성공한 호스트 (영상 URL도 동일 호스트 사용) */
+let activeAssetOrigin = WALKY_ASSET_ORIGIN;
+
+function assetOriginsToTry(): string[] {
+  const list = [WALKY_ASSET_ORIGIN];
+  if (WALKY_ASSET_FALLBACK_ORIGIN !== WALKY_ASSET_ORIGIN) {
+    list.push(WALKY_ASSET_FALLBACK_ORIGIN);
+  }
+  return list;
+}
 
 function getBreedFolder(breed: Breed): string {
   return `${LOCAL_BASE}${breed}/`;
@@ -15,12 +27,12 @@ function getLocalManifestPath(breed: Breed): string {
   return `${getBreedFolder(breed)}manifest.json`;
 }
 
-function getRemoteManifestUrl(breed: Breed): string {
-  return `${BASE_URL}/${breed}/manifest.json`;
+function getRemoteManifestUrl(origin: string, breed: Breed): string {
+  return `${origin}/dogs/${breed}/manifest.json`;
 }
 
 function getRemoteVideoUrl(breed: Breed, fileName: string): string {
-  return `${BASE_URL}/${breed}/${fileName}`;
+  return `${activeAssetOrigin}/dogs/${breed}/${fileName}`;
 }
 
 async function ensureDir(path: string): Promise<void> {
@@ -39,19 +51,58 @@ function getAllVideoFileNames(manifest: DogAssetManifest): string[] {
     .flat();
 }
 
-export async function downloadManifest(
+function parseManifestJson(text: string, url: string): DogAssetManifest {
+  if (text.includes('<<<<<<<') || text.includes('>>>>>>>')) {
+    throw new Error(
+      `manifest.json에 Git 병합 충돌 표시가 있습니다. 서버 파일을 수정하세요.\n${url}`
+    );
+  }
+
+  let json: unknown;
+  try {
+    json = JSON.parse(text);
+  } catch {
+    throw new Error(`manifest.json이 올바른 JSON이 아닙니다.\n${url}`);
+  }
+
+  return json as DogAssetManifest;
+}
+
+async function fetchManifestFromOrigin(
+  origin: string,
   breed: Breed
 ): Promise<DogAssetManifest> {
-  const url = getRemoteManifestUrl(breed);
+  const url = getRemoteManifestUrl(origin, breed);
   const res = await fetch(url);
 
   if (!res.ok) {
-    throw new Error(`Failed to download manifest: ${url}`);
+    throw new Error(`manifest HTTP ${res.status}\n${url}`);
   }
 
-  const json = (await res.json()) as DogAssetManifest;
+  const text = await res.text();
+  return parseManifestJson(text, url);
+}
 
-  return json;
+export async function downloadManifest(
+  breed: Breed
+): Promise<DogAssetManifest> {
+  let lastError: Error | null = null;
+
+  for (const origin of assetOriginsToTry()) {
+    try {
+      const manifest = await fetchManifestFromOrigin(origin, breed);
+      activeAssetOrigin = origin;
+      return manifest;
+    } catch (e) {
+      lastError = e instanceof Error ? e : new Error(String(e));
+      console.log(`manifest fetch failed (${origin}):`, lastError.message);
+    }
+  }
+
+  throw (
+    lastError ??
+    new Error(`Failed to download manifest for breed: ${breed}`)
+  );
 }
 
 async function downloadVideo(
@@ -72,7 +123,13 @@ async function downloadVideo(
     await FileSystem.deleteAsync(localPath, { idempotent: true });
   }
 
-  await FileSystem.downloadAsync(remoteUrl, localPath);
+  const result = await FileSystem.downloadAsync(remoteUrl, localPath);
+
+  if (result.status < 200 || result.status >= 300) {
+    throw new Error(
+      `영상 다운로드 실패 HTTP ${result.status}\n${remoteUrl}`
+    );
+  }
 
   return localPath;
 }
@@ -96,7 +153,12 @@ export async function downloadBreedAssets(
   const allVideos = getAllVideoFileNames(manifest);
 
   for (const fileName of allVideos) {
-    await downloadVideo(breed, fileName);
+    try {
+      await downloadVideo(breed, fileName);
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`${fileName} 다운로드 실패\n${msg}`);
+    }
   }
 
   return manifest;
@@ -105,7 +167,6 @@ export async function downloadBreedAssets(
 /**
  * 원격 manifest.json을 항상 받아 로컬에 반영합니다.
  * 매니페스트 내용이 이전과 달라진 경우에만, 목록에 있는 영상을 서버 기준으로 다시 받습니다.
- * (파일명만 같고 내용만 바뀐 경우에는 manifest에 버전 필드 등을 넣어 JSON이 달라지게 하세요.)
  */
 export async function syncRemoteBreedAssets(
   breed: Breed
