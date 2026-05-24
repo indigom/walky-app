@@ -4,22 +4,24 @@ import { useRef, useState } from 'react';
 import {
   Alert,
   Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
   TouchableOpacity,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
+import { OnboardingBackButton } from '../components/OnboardingBackButton';
+import { OnboardingFormShell } from '../components/OnboardingFormShell';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ONBOARDING_SCREEN_BG } from '../constants/onboardingTheme';
+import { useKeyboardVisible } from '../utils/useKeyboardVisible';
+import { useScrollToField } from '../utils/useScrollToField';
 
 type Props = {
+  onBack?: () => void;
   onSubmit: (data: {
     age: number;
     gender: 'male' | 'female';
@@ -28,13 +30,16 @@ type Props = {
   }) => void;
 };
 
-export function UserInfoScreen({ onSubmit }: Props) {
+export function UserInfoScreen({ onSubmit, onBack }: Props) {
+  const keyboardVisible = useKeyboardVisible();
+  const scrollRef = useRef<ScrollView>(null);
+  const { register, focus } = useScrollToField(scrollRef);
+
   const [age, setAge] = useState('');
   const [height, setHeight] = useState('');
   const [weight, setWeight] = useState('');
   const [gender, setGender] = useState<'male' | 'female'>('male');
 
-  const scrollRef = useRef<ScrollView>(null);
   const heightRef = useRef<TextInput>(null);
   const weightRef = useRef<TextInput>(null);
 
@@ -66,36 +71,14 @@ export function UserInfoScreen({ onSubmit }: Props) {
     });
   }
 
-  function handleInputFocus(y: number) {
-    setTimeout(() => {
-      scrollRef.current?.scrollTo({
-        y: Math.max(0, y - 120),
-        animated: true,
-      });
-    }, 150);
-  }
-
-  const createFocusHandler = (y: number) => () => {
-    handleInputFocus(y);
-  };
-
   return (
     <SafeAreaView style={styles.safeArea}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <KeyboardAvoidingView
-          style={styles.flex}
-          behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-          keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
-        >
-          <ScrollView
-            ref={scrollRef}
-            contentContainerStyle={styles.container}
-            keyboardShouldPersistTaps="handled"
-            keyboardDismissMode={
-              Platform.OS === 'ios' ? 'interactive' : 'on-drag'
-            }
-            showsVerticalScrollIndicator={false}
-          >
+      {onBack ? (
+        <View style={styles.backRow}>
+          <OnboardingBackButton onPress={onBack} />
+        </View>
+      ) : null}
+      <OnboardingFormShell scrollRef={scrollRef} headerRows={onBack ? 1 : 0}>
             <View style={styles.content}>
               <Text style={styles.title}>내 정보를 알려주세요</Text>
               <Text style={styles.subtitle}>
@@ -144,7 +127,7 @@ export function UserInfoScreen({ onSubmit }: Props) {
                 </View>
               </View>
 
-              <View style={styles.section}>
+              <View style={styles.section} onLayout={register('age')}>
                 <Text style={styles.label}>나이</Text>
                 <TextInput
                   style={styles.input}
@@ -154,13 +137,13 @@ export function UserInfoScreen({ onSubmit }: Props) {
                   value={age}
                   onChangeText={setAge}
                   returnKeyType="next"
-                  onFocus={createFocusHandler(220)}
+                  onFocus={focus('age')}
                   onSubmitEditing={() => heightRef.current?.focus()}
                   blurOnSubmit={false}
                 />
               </View>
 
-              <View style={styles.section}>
+              <View style={styles.section} onLayout={register('height')}>
                 <Text style={styles.label}>키</Text>
                 <TextInput
                   ref={heightRef}
@@ -171,13 +154,13 @@ export function UserInfoScreen({ onSubmit }: Props) {
                   value={height}
                   onChangeText={setHeight}
                   returnKeyType="next"
-                  onFocus={createFocusHandler(320)}
+                  onFocus={focus('height')}
                   onSubmitEditing={() => weightRef.current?.focus()}
                   blurOnSubmit={false}
                 />
               </View>
 
-              <View style={styles.section}>
+              <View style={styles.section} onLayout={register('weight')}>
                 <Text style={styles.label}>몸무게</Text>
                 <TextInput
                   ref={weightRef}
@@ -188,36 +171,29 @@ export function UserInfoScreen({ onSubmit }: Props) {
                   value={weight}
                   onChangeText={setWeight}
                   returnKeyType="done"
-                  onFocus={createFocusHandler(420)}
+                  onFocus={focus('weight')}
                   onSubmitEditing={handleSubmit}
                 />
               </View>
 
-              <View style={styles.buttonWrap}>
-                <PrimaryButton
-                  label="다음"
-                  onPress={handleSubmit}
-                  disabled={!isFormValid}
-                />
-              </View>
+              {!keyboardVisible ? (
+                <View style={styles.buttonWrap}>
+                  <PrimaryButton
+                    label="다음"
+                    onPress={handleSubmit}
+                    disabled={!isFormValid}
+                  />
+                </View>
+              ) : null}
             </View>
-          </ScrollView>
-        </KeyboardAvoidingView>
-      </TouchableWithoutFeedback>
+      </OnboardingFormShell>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: ONBOARDING_SCREEN_BG },
-  flex: { flex: 1 },
-  container: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 96,
-  },
+  backRow: { paddingHorizontal: 24, paddingTop: 4 },
   content: { width: '100%' },
   title: {
     fontSize: 26,

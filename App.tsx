@@ -534,7 +534,7 @@ export default function App() {
               setDogState={setDogState}
               onComplete={async (breed: Breed) => {
                 await handleBreedSelectComplete(breed);
-                navigation.replace('NameInput');
+                navigation.navigate('NameInput');
               }}
             />
           )}
@@ -543,13 +543,18 @@ export default function App() {
         <Stack.Screen name="NameInput">
           {({ navigation }) => (
             <NameInputScreen
+              onBack={
+                navigation.canGoBack()
+                  ? () => navigation.goBack()
+                  : undefined
+              }
               onSubmit={(name) => {
                 setDogState((prev) => ({
                   ...prev,
                   name,
                 }));
 
-                navigation.replace('UserInfo');
+                navigation.navigate('UserInfo');
               }}
             />
           )}
@@ -558,6 +563,11 @@ export default function App() {
         <Stack.Screen name="UserInfo">
           {({ navigation }) => (
             <UserInfoScreen
+              onBack={
+                navigation.canGoBack()
+                  ? () => navigation.goBack()
+                  : undefined
+              }
               onSubmit={(data) => {
                 setDogState((prev) => ({
                   ...prev,
@@ -570,7 +580,7 @@ export default function App() {
                   },
                 }));
 
-                navigation.replace('ProfilePhoto');
+                navigation.navigate('ProfilePhoto');
               }}
             />
           )}
@@ -580,6 +590,11 @@ export default function App() {
           {({ navigation }) => (
             <ProfilePhotoScreen
               initialNickname={dogState.user?.nickname}
+              onBack={
+                navigation.canGoBack()
+                  ? () => navigation.goBack()
+                  : undefined
+              }
               onSubmit={(result) => {
                 const baseUser: UserProfile = {
                   ...(dogState.user ?? {}),
@@ -596,7 +611,7 @@ export default function App() {
                   user: baseUser,
                 }));
 
-                navigation.replace('WalkHabit');
+                navigation.navigate('WalkHabit');
 
                 void syncUserProfileToServer({
                   nickname: result.nickname,
@@ -631,6 +646,11 @@ export default function App() {
         <Stack.Screen name="WalkHabit">
           {({ navigation }) => (
             <WalkHabitScreen
+              onBack={
+                navigation.canGoBack()
+                  ? () => navigation.goBack()
+                  : undefined
+              }
               onSubmit={(habit) => {
                 setDogState((prev) => ({
                   ...prev,

@@ -12,11 +12,20 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import {
+  SafeAreaView,
+  useSafeAreaInsets,
+} from 'react-native-safe-area-context';
 
 import { NearbyWalkerAlertsSwitch } from '../components/NearbyWalkerAlertsSwitch';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { ProfilePhotoPickerSection } from '../components/ProfilePhotoPickerSection';
+import {
+  KEYBOARD_AVOIDING_BEHAVIOR,
+  keyboardVerticalOffset,
+  scrollPaddingBottom,
+  USE_KEYBOARD_AVOIDING_VIEW,
+} from '../constants/keyboardForm';
 import type { DogState, UserProfile } from '../types';
 import { persistProfilePhoto } from '../utils/profilePhotoStorage';
 import {
@@ -24,6 +33,9 @@ import {
   syncUserProfileToServer,
 } from '../utils/profileSync';
 import { syncDailyWalkReminderFromProfile } from '../utils/walkReminderNotifications';
+import { useKeyboardInset } from '../utils/useKeyboardInset';
+import { useKeyboardVisible } from '../utils/useKeyboardVisible';
+import { useScrollToField } from '../utils/useScrollToField';
 
 type Props = {
   dogState: DogState;
@@ -32,6 +44,9 @@ type Props = {
 };
 
 export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
+  const insets = useSafeAreaInsets();
+  const keyboardInset = useKeyboardInset();
+  const keyboardVisible = useKeyboardVisible();
   const user = dogState.user;
 
   const [nickname, setNickname] = useState(user?.nickname?.trim() ?? '');
@@ -63,6 +78,7 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
   const [saving, setSaving] = useState(false);
 
   const scrollRef = useRef<ScrollView>(null);
+  const { register, focus } = useScrollToField(scrollRef);
   const initialPhotoUriRef = useRef<string | null>(null);
 
   const ageNumber = Number(age);
@@ -88,12 +104,6 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
     Number.isFinite(distanceKm) &&
     distanceKm > 0 &&
     distanceKm <= 50;
-
-  function scrollToY(y: number) {
-    setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: Math.max(0, y - 100), animated: true });
-    }, 150);
-  }
 
   async function handleSave() {
     Keyboard.dismiss();
@@ -171,25 +181,14 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
     }
   }
 
-  return (
-    <SafeAreaView style={styles.safeArea}>
-      <View style={styles.header}>
-        <Pressable onPress={onClose} hitSlop={12} disabled={saving}>
-          <Text style={styles.headerBack}>← 닫기</Text>
-        </Pressable>
-        <Text style={styles.headerTitle}>설정</Text>
-        <View style={styles.headerSpacer} />
-      </View>
-
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 8 : 0}
-      >
-        <ScrollView
+  const scrollBody = (
+    <ScrollView
           ref={scrollRef}
           style={styles.flex}
-          contentContainerStyle={styles.scrollContent}
+          contentContainerStyle={[
+            styles.scrollContent,
+            { paddingBottom: scrollPaddingBottom(keyboardInset, 56) },
+          ]}
           keyboardShouldPersistTaps="handled"
           keyboardDismissMode={
             Platform.OS === 'ios' ? 'interactive' : 'on-drag'
@@ -209,7 +208,7 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
               disabled={saving}
             />
 
-            <View style={styles.section}>
+            <View style={styles.section} onLayout={register('nickname')}>
               <Text style={styles.label}>닉네임 (선택)</Text>
               <TextInput
                 style={styles.input}
@@ -217,7 +216,7 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
                 placeholderTextColor="#888"
                 value={nickname}
                 onChangeText={setNickname}
-                onFocus={() => scrollToY(120)}
+                onFocus={focus('nickname')}
               />
             </View>
 
@@ -277,7 +276,7 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
               </View>
             </View>
 
-            <View style={styles.section}>
+            <View style={styles.section} onLayout={register('age')}>
               <Text style={styles.label}>나이</Text>
               <TextInput
                 style={styles.input}
@@ -286,11 +285,11 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
                 keyboardType="numeric"
                 value={age}
                 onChangeText={setAge}
-                onFocus={() => scrollToY(360)}
+                onFocus={focus('age')}
               />
             </View>
 
-            <View style={styles.section}>
+            <View style={styles.section} onLayout={register('height')}>
               <Text style={styles.label}>키 (cm)</Text>
               <TextInput
                 style={styles.input}
@@ -299,11 +298,11 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
                 keyboardType="numeric"
                 value={height}
                 onChangeText={setHeight}
-                onFocus={() => scrollToY(440)}
+                onFocus={focus('height')}
               />
             </View>
 
-            <View style={styles.section}>
+            <View style={styles.section} onLayout={register('weight')}>
               <Text style={styles.label}>몸무게 (kg)</Text>
               <TextInput
                 style={styles.input}
@@ -312,12 +311,12 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
                 keyboardType="numeric"
                 value={weight}
                 onChangeText={setWeight}
-                onFocus={() => scrollToY(520)}
+                onFocus={focus('weight')}
               />
             </View>
 
             <Text style={styles.sectionTitle}>산책 습관</Text>
-            <View style={styles.section}>
+            <View style={styles.section} onLayout={register('time')}>
               <Text style={styles.label}>산책 시간</Text>
               <View style={styles.timeRow}>
                 <TextInput
@@ -328,7 +327,7 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
                   value={hourText}
                   onChangeText={setHourText}
                   maxLength={2}
-                  onFocus={() => scrollToY(600)}
+                  onFocus={focus('time')}
                 />
                 <Text style={styles.timeColon}>:</Text>
                 <TextInput
@@ -339,12 +338,12 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
                   value={minuteText}
                   onChangeText={setMinuteText}
                   maxLength={2}
-                  onFocus={() => scrollToY(600)}
+                  onFocus={focus('time')}
                 />
               </View>
             </View>
 
-            <View style={styles.section}>
+            <View style={styles.section} onLayout={register('distance')}>
               <Text style={styles.label}>목표 산책 거리 (km)</Text>
               <TextInput
                 style={styles.input}
@@ -353,7 +352,7 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
                 keyboardType="decimal-pad"
                 value={distanceText}
                 onChangeText={setDistanceText}
-                onFocus={() => scrollToY(680)}
+                onFocus={focus('distance')}
               />
             </View>
 
@@ -364,16 +363,40 @@ export function SettingsScreen({ dogState, setDogState, onClose }: Props) {
               />
             </View>
 
-            <View style={styles.buttonWrap}>
-              <PrimaryButton
-                label="저장"
-                onPress={() => void handleSave()}
-                disabled={!isFormValid || saving}
-                loading={saving}
-              />
-            </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
+            {!keyboardVisible ? (
+              <View style={styles.buttonWrap}>
+                <PrimaryButton
+                  label="저장"
+                  onPress={() => void handleSave()}
+                  disabled={!isFormValid || saving}
+                  loading={saving}
+                />
+              </View>
+            ) : null}
+    </ScrollView>
+  );
+
+  return (
+    <SafeAreaView style={styles.safeArea}>
+      <View style={styles.header}>
+        <Pressable onPress={onClose} hitSlop={12} disabled={saving}>
+          <Text style={styles.headerBack}>← 닫기</Text>
+        </Pressable>
+        <Text style={styles.headerTitle}>설정</Text>
+        <View style={styles.headerSpacer} />
+      </View>
+
+      {USE_KEYBOARD_AVOIDING_VIEW ? (
+        <KeyboardAvoidingView
+          style={styles.flex}
+          behavior={KEYBOARD_AVOIDING_BEHAVIOR}
+          keyboardVerticalOffset={keyboardVerticalOffset(insets.top, 1)}
+        >
+          {scrollBody}
+        </KeyboardAvoidingView>
+      ) : (
+        <View style={styles.flex}>{scrollBody}</View>
+      )}
     </SafeAreaView>
   );
 }

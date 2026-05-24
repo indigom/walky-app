@@ -1,8 +1,7 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import {
   Alert,
   Image,
-  KeyboardAvoidingView,
   Platform,
   Pressable,
   ScrollView,
@@ -14,9 +13,13 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 
+import { OnboardingBackButton } from '../components/OnboardingBackButton';
+import { OnboardingFormShell } from '../components/OnboardingFormShell';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { getProfileImagePickerOptions } from '../utils/profileImagePicker';
 import { persistProfilePhoto } from '../utils/profilePhotoStorage';
+import { useKeyboardVisible } from '../utils/useKeyboardVisible';
+import { useScrollToField } from '../utils/useScrollToField';
 
 export type ProfilePhotoSubmit = {
   nickname?: string;
@@ -26,13 +29,19 @@ export type ProfilePhotoSubmit = {
 
 type Props = {
   initialNickname?: string;
+  onBack?: () => void;
   onSubmit: (result: ProfilePhotoSubmit) => void | Promise<void>;
 };
 
 export function ProfilePhotoScreen({
   initialNickname = '',
+  onBack,
   onSubmit,
 }: Props) {
+  const keyboardVisible = useKeyboardVisible();
+  const scrollRef = useRef<ScrollView>(null);
+  const { register, focus } = useScrollToField(scrollRef);
+
   const [nickname, setNickname] = useState(initialNickname.trim());
   const [previewUri, setPreviewUri] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
@@ -119,23 +128,23 @@ export function ProfilePhotoScreen({
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <KeyboardAvoidingView
-        style={styles.flex}
-        behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      {onBack ? (
+        <View style={styles.backRow}>
+          <OnboardingBackButton onPress={onBack} />
+        </View>
+      ) : null}
+      <OnboardingFormShell
+        scrollRef={scrollRef}
+        headerRows={onBack ? 1 : 0}
+        contentContainerStyle={styles.container}
       >
-        <ScrollView
-          style={styles.scroll}
-          contentContainerStyle={styles.container}
-          keyboardShouldPersistTaps="handled"
-          showsVerticalScrollIndicator={false}
-        >
           <Text style={styles.title}>나의 프로필</Text>
           <Text style={styles.subtitle}>
             닉네임과 사진은 근처 산책자에게 보여요.{'\n'}
             설정에서 언제든 바꿀 수 있어요.
           </Text>
 
-          <View style={styles.nicknameSection}>
+          <View style={styles.nicknameSection} onLayout={register('nickname')}>
             <Text style={styles.label}>닉네임 (선택)</Text>
             <TextInput
               style={styles.nicknameInput}
@@ -145,6 +154,7 @@ export function ProfilePhotoScreen({
               onChangeText={setNickname}
               maxLength={24}
               editable={!busy}
+              onFocus={focus('nickname')}
             />
           </View>
 
@@ -183,29 +193,30 @@ export function ProfilePhotoScreen({
             </Pressable>
           ) : null}
         </View>
-        </ScrollView>
 
-        <View style={styles.footer}>
-          {!previewUri ? (
-            <Text style={styles.footerHint}>
-              프로필 사진을 선택하면 다음으로 진행할 수 있어요.
-            </Text>
-          ) : null}
-          <PrimaryButton
-            label="다음"
-            onPress={() => void handleNext()}
-            disabled={!previewUri || busy}
-            loading={busy}
-          />
-          <Pressable
-            style={styles.skipWrap}
-            onPress={handleSkip}
-            disabled={busy}
-          >
-            <Text style={styles.skipText}>사진은 나중에 할게요</Text>
-          </Pressable>
-        </View>
-      </KeyboardAvoidingView>
+        {!keyboardVisible ? (
+          <View style={styles.footer}>
+            {!previewUri ? (
+              <Text style={styles.footerHint}>
+                프로필 사진을 선택하면 다음으로 진행할 수 있어요.
+              </Text>
+            ) : null}
+            <PrimaryButton
+              label="다음"
+              onPress={() => void handleNext()}
+              disabled={!previewUri || busy}
+              loading={busy}
+            />
+            <Pressable
+              style={styles.skipWrap}
+              onPress={handleSkip}
+              disabled={busy}
+            >
+              <Text style={styles.skipText}>사진은 나중에 할게요</Text>
+            </Pressable>
+          </View>
+        ) : null}
+      </OnboardingFormShell>
     </SafeAreaView>
   );
 }
@@ -214,23 +225,17 @@ const AVATAR_SIZE = 168;
 
 const styles = StyleSheet.create({
   safeArea: { flex: 1, backgroundColor: '#000' },
-  flex: { flex: 1 },
-  scroll: { flex: 1 },
+  backRow: { paddingHorizontal: 24, paddingTop: 4 },
   container: {
-    flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 16,
     alignItems: 'center',
+    paddingTop: 16,
   },
   footer: {
     width: '100%',
-    paddingHorizontal: 24,
-    paddingTop: 12,
-    paddingBottom: 20,
+    marginTop: 8,
+    paddingTop: 20,
     borderTopWidth: 1,
     borderTopColor: '#1F1F23',
-    backgroundColor: '#000',
   },
   title: {
     fontSize: 26,

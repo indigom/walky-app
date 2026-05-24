@@ -15,7 +15,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.anonymous.walkyapp"
+      "bundleIdentifier": "com.anonymous.walkyapp",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "강아지 이름을 부르면 반응하려면 마이크 접근이 필요합니다.",
+        "NSSpeechRecognitionUsageDescription": "강아지 이름을 부르면 반응하려면 음성 인식이 필요합니다."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -23,6 +27,7 @@
         "backgroundColor": "#ffffff"
       },
       "edgeToEdgeEnabled": true,
+      "softwareKeyboardLayoutMode": "resize",
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "android.permission.ACCESS_COARSE_LOCATION",
@@ -62,6 +67,13 @@
         {
           "photosPermission": "프로필 사진을 등록하기 위해 사진 보관함에 접근합니다.",
           "cameraPermission": "프로필 사진 촬영을 위해 카메라에 접근합니다."
+        }
+      ],
+      [
+        "expo-speech-recognition",
+        {
+          "microphonePermission": "강아지 이름을 부르면 반응하려면 마이크 접근이 필요합니다.",
+          "speechRecognitionPermission": "강아지 이름을 부르면 반응하려면 음성 인식이 필요합니다."
         }
       ]
     ],

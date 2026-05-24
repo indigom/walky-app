@@ -1,6 +1,11 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Animated, StyleSheet, View } from 'react-native';
+import { Animated, InteractionManager, StyleSheet, View } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
+
+import {
+  ANDROID_SIMPLE_VIDEO,
+  VIDEO_SURFACE_TYPE,
+} from '../utils/dogVisualPlatform';
 
 type Props = {
   videoPath: string | null;
@@ -44,8 +49,15 @@ export function DogVisual({
   const crossfadeGenRef = useRef(0);
   const baseCrossfadeAnimRef = useRef<Animated.CompositeAnimation | null>(null);
   const prevReplayKeyRef = useRef(videoReplayKey);
+  const videoLoopRef = useRef(videoLoop);
+  const videoPathRef = useRef(videoPath);
+  const actionPathRef = useRef(actionPath);
+  const lastLoadedBasePathRef = useRef<string | null>(null);
 
-  /** 소스는 effect에서만 replace — hook 인자에 videoPath 넣으면 전환 시 끊김 */
+  videoLoopRef.current = videoLoop;
+  videoPathRef.current = videoPath;
+  actionPathRef.current = actionPath;
+
   const basePlayerA = useVideoPlayer(EMPTY_SOURCE, (player) => {
     player.loop = videoLoop;
     player.muted = muted;
@@ -65,11 +77,10 @@ export function DogVisual({
   });
 
   const getActiveBasePlayer = useCallback(() => {
+    if (ANDROID_SIMPLE_VIDEO) {
+      return basePlayerA;
+    }
     return activeBaseSlotRef.current === 'A' ? basePlayerA : basePlayerB;
-  }, [basePlayerA, basePlayerB]);
-
-  const getInactiveBasePlayer = useCallback(() => {
-    return activeBaseSlotRef.current === 'A' ? basePlayerB : basePlayerA;
   }, [basePlayerA, basePlayerB]);
 
   const dissolveToActionLayer = useCallback(
@@ -77,6 +88,15 @@ export function DogVisual({
       on: boolean,
       done?: ({ finished }: { finished: boolean }) => void
     ) => {
+      if (ANDROID_SIMPLE_VIDEO) {
+        Animated.timing(actionOpacityAnim, {
+          toValue: on ? 1 : 0,
+          duration: DISSOLVE_MS,
+          useNativeDriver: true,
+        }).start(done);
+        return;
+      }
+
       Animated.parallel([
         Animated.timing(baseStackOpacityAnim, {
           toValue: on ? 0 : 1,
@@ -139,12 +159,51 @@ export function DogVisual({
     []
   );
 
+  const ensureBasePlaying = useCallback(
+    (player: VideoPlayer, loop: boolean) => {
+      try {
+        player.muted = muted;
+        player.loop = loop;
+        if (!player.playing) {
+          player.play();
+        }
+      } catch (e) {
+        console.log('DogVisual ensureBasePlaying', e);
+      }
+    },
+    [muted]
+  );
+
+  const clearActionPlayer = useCallback(() => {
+    try {
+      actionPlayer.pause();
+      actionPlayer.currentTime = 0;
+      if (!ANDROID_SIMPLE_VIDEO) {
+        actionPlayer.replace(EMPTY_SOURCE);
+      }
+    } catch (e) {
+      console.log('DogVisual clear action player', e);
+    }
+  }, [actionPlayer]);
+
+  const shouldReloadBase = useCallback(
+    (path: string, forceReload: boolean, player: VideoPlayer) => {
+      if (!forceReload) return false;
+      if (!ANDROID_SIMPLE_VIDEO) return true;
+      if (lastLoadedBasePathRef.current !== path) return true;
+      if (player.status !== 'readyToPlay') return true;
+      return !player.playing;
+    },
+    []
+  );
+
   const runBaseOpacityCrossfade = useCallback(
     (
       fromSlot: BaseSlot,
       toSlot: BaseSlot,
       gen: number,
       newPath: string,
+      loop: boolean,
       shouldPlay: boolean
     ) => {
       const fadeOut = fromSlot === 'A' ? baseOpacityA : baseOpacityB;
@@ -176,27 +235,53 @@ export function DogVisual({
           console.log('DogVisual base crossfade pause out', e);
         }
 
-        if (!shouldPlay) {
+        const playerIn = toSlot === 'A' ? basePlayerA : basePlayerB;
+        if (shouldPlay) {
+          ensureBasePlaying(playerIn, loop);
+        } else {
           try {
-            const playerIn = toSlot === 'A' ? basePlayerA : basePlayerB;
             playerIn.pause();
           } catch {}
         }
       });
     },
-    [baseOpacityA, baseOpacityB, basePlayerA, basePlayerB]
+    [baseOpacityA, baseOpacityB, basePlayerA, basePlayerB, ensureBasePlaying]
   );
 
   const crossfadeBaseVideo = useCallback(
     (newPath: string, loop: boolean) => {
+      const shouldPlay = isScreenActive && !actionPath;
+
+      if (ANDROID_SIMPLE_VIDEO) {
+        const player = basePlayerA;
+        activeBaseSlotRef.current = 'A';
+        baseOpacityA.setValue(1);
+        baseOpacityB.setValue(0);
+
+        void (async () => {
+          try {
+            loadBaseOnPlayer(player, newPath, loop, false);
+            await waitForBaseReady(player);
+            if (!isMountedRef.current) return;
+            if (actionPathRef.current) return;
+            prevVideoPathRef.current = newPath;
+            lastLoadedBasePathRef.current = newPath;
+            if (shouldPlay) {
+              ensureBasePlaying(player, loop);
+            }
+          } catch (e) {
+            console.log('DogVisual android base switch', e);
+          }
+        })();
+        return;
+      }
+
       const fromSlot = activeBaseSlotRef.current;
       const toSlot: BaseSlot = fromSlot === 'A' ? 'B' : 'A';
       const playerIn = toSlot === 'A' ? basePlayerA : basePlayerB;
 
       const gen = ++crossfadeGenRef.current;
       baseCrossfadeAnimRef.current?.stop();
-
-      const shouldPlay = isScreenActive && !actionPath;
 
       void (async () => {
         try {
@@ -210,14 +295,10 @@ export function DogVisual({
         if (gen !== crossfadeGenRef.current) return;
 
         if (shouldPlay) {
-          try {
-            playerIn.play();
-          } catch (e) {
-            console.log('DogVisual base crossfade play', e);
-          }
+          ensureBasePlaying(playerIn, loop);
         }
 
-        runBaseOpacityCrossfade(fromSlot, toSlot, gen, newPath, shouldPlay);
+        runBaseOpacityCrossfade(fromSlot, toSlot, gen, newPath, loop, shouldPlay);
       })();
     },
     [
@@ -228,6 +309,57 @@ export function DogVisual({
       loadBaseOnPlayer,
       waitForBaseReady,
       runBaseOpacityCrossfade,
+      ensureBasePlaying,
+    ]
+  );
+
+  const resumeBasePlayback = useCallback(
+    (forceReload = true, ignoreAction = false) => {
+      const path = videoPathRef.current;
+      const loop = videoLoopRef.current;
+      if (!path || !isScreenActive) return;
+      if (!ignoreAction && actionPathRef.current) return;
+
+      const active = getActiveBasePlayer();
+      const reload = shouldReloadBase(path, forceReload, active);
+
+      const run = () => {
+        void (async () => {
+          try {
+            if (!ANDROID_SIMPLE_VIDEO) {
+              baseStackOpacityAnim.setValue(1);
+            }
+
+            if (reload) {
+              loadBaseOnPlayer(active, path, loop, false);
+              await waitForBaseReady(active);
+              lastLoadedBasePathRef.current = path;
+            }
+
+            if (!isMountedRef.current || actionPathRef.current) return;
+            ensureBasePlaying(active, loop);
+          } catch (e) {
+            console.log('DogVisual resume base', e);
+          }
+        })();
+      };
+
+      if (ANDROID_SIMPLE_VIDEO && !reload) {
+        run();
+      } else if (ANDROID_SIMPLE_VIDEO) {
+        InteractionManager.runAfterInteractions(run);
+      } else {
+        run();
+      }
+    },
+    [
+      isScreenActive,
+      getActiveBasePlayer,
+      loadBaseOnPlayer,
+      waitForBaseReady,
+      baseStackOpacityAnim,
+      ensureBasePlaying,
+      shouldReloadBase,
     ]
   );
 
@@ -266,13 +398,23 @@ export function DogVisual({
 
       if (actionPath) {
         actionPlayer.play();
+      } else if (videoPath) {
+        resumeBasePlayback(false);
       }
     } catch (e) {
       console.log('DogVisual resume', e);
     }
-  }, [isScreenActive, actionPath, basePlayerA, basePlayerB, actionPlayer, muted]);
+  }, [
+    isScreenActive,
+    actionPath,
+    videoPath,
+    basePlayerA,
+    basePlayerB,
+    actionPlayer,
+    muted,
+    resumeBasePlayback,
+  ]);
 
-  /** 베이스 소스 교체 — ambient idle ↔ hungry 등은 크로스디졸브 */
   useEffect(() => {
     if (!videoPath) return;
 
@@ -281,7 +423,12 @@ export function DogVisual({
 
     try {
       if (actionPath) {
-        loadBaseOnPlayer(getActiveBasePlayer(), videoPath, videoLoop, false);
+        if (!ANDROID_SIMPLE_VIDEO) {
+          try {
+            basePlayerA.pause();
+            basePlayerB.pause();
+          } catch {}
+        }
         prevVideoPathRef.current = videoPath;
         return;
       }
@@ -291,17 +438,20 @@ export function DogVisual({
         baseOpacityA.setValue(1);
         baseOpacityB.setValue(0);
         loadBaseOnPlayer(basePlayerA, videoPath, videoLoop, shouldPlayBase);
-        try {
-          basePlayerB.pause();
-        } catch {}
+        lastLoadedBasePathRef.current = videoPath;
+        if (!ANDROID_SIMPLE_VIDEO) {
+          try {
+            basePlayerB.pause();
+          } catch {}
+        }
         prevVideoPathRef.current = videoPath;
         return;
       }
 
       if (prev === videoPath) {
-        const active = getActiveBasePlayer();
-        active.loop = videoLoop;
-        active.muted = muted;
+        if (shouldPlayBase) {
+          resumeBasePlayback(false);
+        }
         return;
       }
 
@@ -320,57 +470,32 @@ export function DogVisual({
     baseOpacityA,
     baseOpacityB,
     crossfadeBaseVideo,
-    getActiveBasePlayer,
     loadBaseOnPlayer,
+    resumeBasePlayback,
   ]);
 
-  /** videoReplayKey만 베이스 리플레이 — videoPath 변경은 crossfade가 처리 */
   useEffect(() => {
     if (prevReplayKeyRef.current === videoReplayKey) return;
     prevReplayKeyRef.current = videoReplayKey;
 
     if (!videoPath || !isScreenActive || actionPath) return;
-    if (videoPath !== prevVideoPathRef.current) return;
 
-    try {
-      const active = getActiveBasePlayer();
-      active.currentTime = 0;
-      active.loop = videoLoop;
-      active.play();
-    } catch (e) {
-      console.log('DogVisual base replay', e);
-    }
-  }, [
-    videoReplayKey,
-    videoPath,
-    isScreenActive,
-    actionPath,
-    getActiveBasePlayer,
-    videoLoop,
-  ]);
+    resumeBasePlayback(!ANDROID_SIMPLE_VIDEO);
+  }, [videoReplayKey, videoPath, isScreenActive, actionPath, resumeBasePlayback]);
 
   useEffect(() => {
     if (!actionPath) {
-      isEndingActionRef.current = false;
-      dissolveToActionLayer(false);
+      clearActionPlayer();
 
-      try {
-        actionPlayer.pause();
-        actionPlayer.replace(EMPTY_SOURCE);
-        actionPlayer.currentTime = 0;
-      } catch (e) {
-        console.log('DogVisual clear action', e);
+      if (isEndingActionRef.current) {
+        isEndingActionRef.current = false;
+        return;
       }
 
-      if (videoPath && isScreenActive && isMountedRef.current) {
-        requestAnimationFrame(() => {
-          try {
-            const active = getActiveBasePlayer();
-            active.loop = videoLoop;
-            active.play();
-          } catch {}
-        });
-      }
+      dissolveToActionLayer(false, ({ finished }) => {
+        if (!finished || !isMountedRef.current) return;
+        resumeBasePlayback(!ANDROID_SIMPLE_VIDEO);
+      });
 
       return;
     }
@@ -382,8 +507,12 @@ export function DogVisual({
       actionPlayer.currentTime = 0;
       actionPlayer.loop = actionLoop;
       actionPlayer.muted = muted;
-      basePlayerA.pause();
-      basePlayerB.pause();
+
+      if (!ANDROID_SIMPLE_VIDEO) {
+        basePlayerA.pause();
+        basePlayerB.pause();
+      }
+
       dissolveToActionLayer(true);
 
       if (isScreenActive) {
@@ -402,9 +531,8 @@ export function DogVisual({
     muted,
     isScreenActive,
     dissolveToActionLayer,
-    videoPath,
-    videoLoop,
-    getActiveBasePlayer,
+    resumeBasePlayback,
+    clearActionPlayer,
   ]);
 
   useEffect(() => {
@@ -413,26 +541,30 @@ export function DogVisual({
 
       isEndingActionRef.current = true;
 
-      dissolveToActionLayer(false, ({ finished }) => {
-        if (!finished || !isMountedRef.current) return;
-
-        try {
-          actionPlayer.pause();
-          actionPlayer.currentTime = 0;
-          actionPlayer.replace(EMPTY_SOURCE);
-
-          if (videoPath && isScreenActive) {
-            const active = getActiveBasePlayer();
-            active.currentTime = 0;
-            active.loop = videoLoop;
-            active.muted = muted;
-            active.play();
-          }
-        } catch (e) {
-          console.log('DogVisual action ended', e);
+      const finishActionEnd = () => {
+        if (!isMountedRef.current) {
+          isEndingActionRef.current = false;
+          return;
         }
 
+        clearActionPlayer();
+        resumeBasePlayback(false, true);
+        isEndingActionRef.current = false;
         onActionEnd?.();
+      };
+
+      if (ANDROID_SIMPLE_VIDEO) {
+        actionOpacityAnim.setValue(0);
+        finishActionEnd();
+        return;
+      }
+
+      dissolveToActionLayer(false, ({ finished }) => {
+        if (!finished) {
+          isEndingActionRef.current = false;
+          return;
+        }
+        finishActionEnd();
       });
     });
 
@@ -441,36 +573,92 @@ export function DogVisual({
     actionPlayer,
     actionPath,
     actionLoop,
-    videoPath,
-    videoLoop,
-    muted,
-    isScreenActive,
     onActionEnd,
     dissolveToActionLayer,
-    getActiveBasePlayer,
+    resumeBasePlayback,
+    clearActionPlayer,
   ]);
 
   useEffect(() => {
-    const onEnd = () => {
-      if (videoLoop) return;
-      if (actionPath) return;
-      onVideoEnd?.();
+    const restartIfLooping = (slot: BaseSlot) => {
+      if (!videoLoopRef.current || actionPathRef.current) return;
+      if (!ANDROID_SIMPLE_VIDEO && activeBaseSlotRef.current !== slot) {
+        return;
+      }
+
+      const player =
+        ANDROID_SIMPLE_VIDEO || slot === 'A' ? basePlayerA : basePlayerB;
+      try {
+        player.currentTime = 0;
+        player.loop = videoLoopRef.current;
+        player.play();
+      } catch (e) {
+        console.log('DogVisual base loop restart', e);
+      }
     };
 
-    const subA = basePlayerA.addListener('playToEnd', () => {
-      if (activeBaseSlotRef.current !== 'A') return;
-      onEnd();
-    });
+    const subA = basePlayerA.addListener('playToEnd', () => restartIfLooping('A'));
     const subB = basePlayerB.addListener('playToEnd', () => {
-      if (activeBaseSlotRef.current !== 'B') return;
-      onEnd();
+      if (!ANDROID_SIMPLE_VIDEO) {
+        restartIfLooping('B');
+      }
     });
 
     return () => {
       subA.remove();
       subB.remove();
     };
-  }, [basePlayerA, basePlayerB, videoLoop, actionPath, onVideoEnd]);
+  }, [basePlayerA, basePlayerB, videoLoop]);
+
+  useEffect(() => {
+    const onAmbientClipEnd = (slot: BaseSlot) => {
+      if (videoLoopRef.current || actionPathRef.current) return;
+      if (!ANDROID_SIMPLE_VIDEO && activeBaseSlotRef.current !== slot) {
+        return;
+      }
+
+      onVideoEnd?.();
+      if (videoPathRef.current && isScreenActive) {
+        resumeBasePlayback(!ANDROID_SIMPLE_VIDEO, true);
+      }
+    };
+
+    const subA = basePlayerA.addListener('playToEnd', () => onAmbientClipEnd('A'));
+    const subB = basePlayerB.addListener('playToEnd', () => {
+      if (!ANDROID_SIMPLE_VIDEO) {
+        onAmbientClipEnd('B');
+      }
+    });
+
+    return () => {
+      subA.remove();
+      subB.remove();
+    };
+  }, [basePlayerA, basePlayerB, isScreenActive, onVideoEnd, resumeBasePlayback]);
+
+  /** Android: 액션 중이 아닐 때만, 베이스가 멈춘 경우에만 재개 */
+  useEffect(() => {
+    if (!ANDROID_SIMPLE_VIDEO) return;
+
+    const player = basePlayerA;
+    const sub = player.addListener('playingChange', ({ isPlaying }) => {
+      if (isPlaying || actionPathRef.current) return;
+      if (!videoPathRef.current || !isScreenActive) return;
+      if (player.status !== 'readyToPlay') return;
+      ensureBasePlaying(player, videoLoopRef.current);
+    });
+
+    return () => sub.remove();
+  }, [basePlayerA, isScreenActive, ensureBasePlaying]);
+
+  const videoViewProps = {
+    style: styles.video,
+    contentFit: 'cover' as const,
+    nativeControls: false,
+    allowsFullscreen: false,
+    allowsPictureInPicture: false,
+    ...(VIDEO_SURFACE_TYPE ? { surfaceType: VIDEO_SURFACE_TYPE } : {}),
+  };
 
   return (
     <View style={styles.container} pointerEvents="none">
@@ -482,43 +670,24 @@ export function DogVisual({
           style={[styles.layer, { opacity: baseOpacityA }]}
           pointerEvents="none"
         >
-          <VideoView
-            player={basePlayerA}
-            style={styles.video}
-            contentFit="cover"
-            nativeControls={false}
-            allowsFullscreen={false}
-            allowsPictureInPicture={false}
-          />
+          <VideoView player={basePlayerA} {...videoViewProps} />
         </Animated.View>
 
-        <Animated.View
-          style={[styles.layer, { opacity: baseOpacityB }]}
-          pointerEvents="none"
-        >
-          <VideoView
-            player={basePlayerB}
-            style={styles.video}
-            contentFit="cover"
-            nativeControls={false}
-            allowsFullscreen={false}
-            allowsPictureInPicture={false}
-          />
-        </Animated.View>
+        {!ANDROID_SIMPLE_VIDEO ? (
+          <Animated.View
+            style={[styles.layer, { opacity: baseOpacityB }]}
+            pointerEvents="none"
+          >
+            <VideoView player={basePlayerB} {...videoViewProps} />
+          </Animated.View>
+        ) : null}
       </Animated.View>
 
       <Animated.View
         style={[styles.layer, { opacity: actionOpacityAnim }]}
         pointerEvents="none"
       >
-        <VideoView
-          player={actionPlayer}
-          style={styles.video}
-          contentFit="cover"
-          nativeControls={false}
-          allowsFullscreen={false}
-          allowsPictureInPicture={false}
-        />
+        <VideoView player={actionPlayer} {...videoViewProps} />
       </Animated.View>
     </View>
   );

@@ -3,22 +3,22 @@ import {
   Alert,
   ImageBackground,
   Keyboard,
-  KeyboardAvoidingView,
-  Platform,
   ScrollView,
   StyleSheet,
   Text,
   TextInput,
-  TouchableWithoutFeedback,
   View,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { NearbyWalkerAlertsSwitch } from '../components/NearbyWalkerAlertsSwitch';
+import { OnboardingBackButton } from '../components/OnboardingBackButton';
+import { OnboardingFormShell } from '../components/OnboardingFormShell';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { MEMBER_INFO_BG } from '../constants/memberInfoBackground';
-import type { UserProfile } from '../types';
 import { formatWalkTimeLabel } from '../utils/walkHabitProfile';
+import { useKeyboardVisible } from '../utils/useKeyboardVisible';
+import { useScrollToField } from '../utils/useScrollToField';
 
 export type WalkHabitInput = {
   usualWalkHour: number;
@@ -28,16 +28,20 @@ export type WalkHabitInput = {
 };
 
 type Props = {
+  onBack?: () => void;
   onSubmit: (habit: WalkHabitInput) => void;
 };
 
-export function WalkHabitScreen({ onSubmit }: Props) {
+export function WalkHabitScreen({ onSubmit, onBack }: Props) {
+  const keyboardVisible = useKeyboardVisible();
+  const scrollRef = useRef<ScrollView>(null);
+  const { register, focus } = useScrollToField(scrollRef);
+
   const [hourText, setHourText] = useState('18');
   const [minuteText, setMinuteText] = useState('30');
   const [distanceText, setDistanceText] = useState('2');
   const [nearbyWalkerAlerts, setNearbyWalkerAlerts] = useState(true);
 
-  const scrollRef = useRef<ScrollView>(null);
   const minuteRef = useRef<TextInput>(null);
   const distanceRef = useRef<TextInput>(null);
 
@@ -80,12 +84,6 @@ export function WalkHabitScreen({ onSubmit }: Props) {
     });
   }
 
-  function scrollToY(y: number) {
-    setTimeout(() => {
-      scrollRef.current?.scrollTo({ y: Math.max(0, y - 120), animated: true });
-    }, 150);
-  }
-
   return (
     <ImageBackground
       source={MEMBER_INFO_BG}
@@ -93,97 +91,92 @@ export function WalkHabitScreen({ onSubmit }: Props) {
       resizeMode="cover"
     >
       <SafeAreaView style={styles.safeArea}>
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <KeyboardAvoidingView
-            style={styles.flex}
-            behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-            keyboardVerticalOffset={Platform.OS === 'ios' ? 20 : 0}
-          >
-            <ScrollView
-              ref={scrollRef}
-              contentContainerStyle={styles.container}
-              keyboardShouldPersistTaps="handled"
-              showsVerticalScrollIndicator={false}
-            >
+        {onBack ? (
+          <View style={styles.backRow}>
+            <OnboardingBackButton onPress={onBack} />
+          </View>
+        ) : null}
+        <OnboardingFormShell scrollRef={scrollRef} headerRows={onBack ? 1 : 0}>
               <View style={styles.content}>
-              <Text style={styles.title}>평소 산책 습관</Text>
-              <Text style={styles.subtitle}>
-                주로 산책하는 시간과 거리를 알려주세요. 그 시간에 산책 알림을 보내 드릴게요.
-              </Text>
+                <Text style={styles.title}>평소 산책 습관</Text>
+                <Text style={styles.subtitle}>
+                  주로 산책하는 시간과 거리를 알려주세요. 그 시간에 산책
+                  알림을 보내 드릴게요.
+                </Text>
 
-              <View style={styles.section}>
-                <Text style={styles.label}>산책 시간</Text>
-                <View style={styles.timeRow}>
+                <View style={styles.section} onLayout={register('time')}>
+                  <Text style={styles.label}>산책 시간</Text>
+                  <View style={styles.timeRow}>
+                    <TextInput
+                      style={[styles.input, styles.timeInput]}
+                      placeholder="시 (0–23)"
+                      placeholderTextColor="#888"
+                      keyboardType="number-pad"
+                      value={hourText}
+                      onChangeText={setHourText}
+                      maxLength={2}
+                      returnKeyType="next"
+                      onFocus={focus('time')}
+                      onSubmitEditing={() => minuteRef.current?.focus()}
+                    />
+                    <Text style={styles.timeColon}>:</Text>
+                    <TextInput
+                      ref={minuteRef}
+                      style={[styles.input, styles.timeInput]}
+                      placeholder="분 (0–59)"
+                      placeholderTextColor="#888"
+                      keyboardType="number-pad"
+                      value={minuteText}
+                      onChangeText={setMinuteText}
+                      maxLength={2}
+                      returnKeyType="next"
+                      onFocus={focus('time')}
+                      onSubmitEditing={() => distanceRef.current?.focus()}
+                    />
+                  </View>
+                  {previewTime ? (
+                    <Text style={styles.hint}>{previewTime} 경에 알림</Text>
+                  ) : null}
+                </View>
+
+                <View style={styles.section} onLayout={register('distance')}>
+                  <Text style={styles.label}>목표 산책 거리 (km)</Text>
                   <TextInput
-                    style={[styles.input, styles.timeInput]}
-                    placeholder="시 (0–23)"
+                    ref={distanceRef}
+                    style={styles.input}
+                    placeholder="예: 2"
                     placeholderTextColor="#888"
-                    keyboardType="number-pad"
-                    value={hourText}
-                    onChangeText={setHourText}
-                    maxLength={2}
-                    returnKeyType="next"
-                    onFocus={() => scrollToY(200)}
-                    onSubmitEditing={() => minuteRef.current?.focus()}
+                    keyboardType="decimal-pad"
+                    value={distanceText}
+                    onChangeText={setDistanceText}
+                    returnKeyType="done"
+                    onFocus={focus('distance')}
+                    onSubmitEditing={handleSubmit}
                   />
-                  <Text style={styles.timeColon}>:</Text>
-                  <TextInput
-                    ref={minuteRef}
-                    style={[styles.input, styles.timeInput]}
-                    placeholder="분 (0–59)"
-                    placeholderTextColor="#888"
-                    keyboardType="number-pad"
-                    value={minuteText}
-                    onChangeText={setMinuteText}
-                    maxLength={2}
-                    returnKeyType="next"
-                    onFocus={() => scrollToY(260)}
-                    onSubmitEditing={() => distanceRef.current?.focus()}
+                  <Text style={styles.hint}>
+                    이번 산책이 목표보다 짧으면 결과 화면에서 안내해 드려요.
+                  </Text>
+                </View>
+
+                <View style={styles.section}>
+                  <NearbyWalkerAlertsSwitch
+                    value={nearbyWalkerAlerts}
+                    onValueChange={setNearbyWalkerAlerts}
+                    lightDescription
                   />
                 </View>
-                {previewTime ? (
-                  <Text style={styles.hint}>{previewTime} 경에 알림</Text>
+
+                {!keyboardVisible ? (
+                  <View style={styles.buttonWrap}>
+                    <PrimaryButton
+                      label="완료"
+                      onPress={handleSubmit}
+                      disabled={!isFormValid}
+                    />
+                  </View>
                 ) : null}
               </View>
-
-              <View style={styles.section}>
-                <Text style={styles.label}>목표 산책 거리 (km)</Text>
-                <TextInput
-                  ref={distanceRef}
-                  style={styles.input}
-                  placeholder="예: 2"
-                  placeholderTextColor="#888"
-                  keyboardType="decimal-pad"
-                  value={distanceText}
-                  onChangeText={setDistanceText}
-                  returnKeyType="done"
-                  onFocus={() => scrollToY(340)}
-                  onSubmitEditing={handleSubmit}
-                />
-                <Text style={styles.hint}>
-                  이번 산책이 목표보다 짧으면 결과 화면에서 안내해 드려요.
-                </Text>
-              </View>
-
-              <View style={styles.section}>
-                <NearbyWalkerAlertsSwitch
-                  value={nearbyWalkerAlerts}
-                  onValueChange={setNearbyWalkerAlerts}
-                  lightDescription
-                />
-              </View>
-
-                <View style={styles.buttonWrap}>
-                  <PrimaryButton
-                    label="완료"
-                    onPress={handleSubmit}
-                    disabled={!isFormValid}
-                  />
-                </View>
-              </View>
-            </ScrollView>
-          </KeyboardAvoidingView>
-        </TouchableWithoutFeedback>
+        </OnboardingFormShell>
       </SafeAreaView>
     </ImageBackground>
   );
@@ -192,14 +185,7 @@ export function WalkHabitScreen({ onSubmit }: Props) {
 const styles = StyleSheet.create({
   root: { flex: 1 },
   safeArea: { flex: 1, backgroundColor: 'transparent' },
-  flex: { flex: 1 },
-  container: {
-    flexGrow: 1,
-    justifyContent: 'center',
-    paddingHorizontal: 24,
-    paddingTop: 32,
-    paddingBottom: 96,
-  },
+  backRow: { paddingHorizontal: 24, paddingTop: 4 },
   content: { width: '100%' },
   title: {
     fontSize: 26,

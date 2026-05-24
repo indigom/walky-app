@@ -1,5 +1,6 @@
 import React, { useRef, useState } from 'react';
 import {
+  Platform,
   View,
   Text,
   StyleSheet,
@@ -15,6 +16,7 @@ import {
   Alert,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from 'react-native-safe-area-context';
 
 import { getBreedSelectCardImageSource } from '../constants/breedSelectCardImages';
 import type { DogState, Breed } from '../types';
@@ -22,7 +24,6 @@ import {
   downloadBreedAssets,
   removeBreedAssets,
 } from '../assets/BreedAssetManager';
-
 const { width, height } = Dimensions.get('window');
 
 type BreedItem = {
@@ -221,6 +222,7 @@ export function BreedSelectScreen({
   };
 
   return (
+    <SafeAreaView style={styles.safeArea} edges={['top', 'bottom']}>
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.title}>함께 걸을 친구를 만나보세요</Text>
@@ -272,15 +274,19 @@ export function BreedSelectScreen({
         )}
       </TouchableOpacity>
     </View>
+    </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
+  safeArea: {
+    flex: 1,
+    backgroundColor: '#FFF7EF',
+  },
   container: {
     flex: 1,
     backgroundColor: '#FFF7EF',
-    paddingTop: 64,
-    paddingBottom: 36,
+    paddingBottom: Platform.OS === 'android' ? 8 : 0,
   },
 
   header: {

@@ -1,6 +1,7 @@
 // src/screens/HomeScreen.tsx
 
 import {
+  useCallback,
   useEffect,
   useMemo,
   useRef,
@@ -46,6 +47,8 @@ import {
 
 import type { DogState, DogAssetManifest, DogAction } from '../types';
 import { getBreedEmptyRoomImageSource } from '../constants/breedEmptyRoomImages';
+import { ANDROID_SIMPLE_VIDEO } from '../utils/dogVisualPlatform';
+import { useDogNameSpeechRecognition } from '../utils/useDogNameSpeechRecognition';
 
 type TodayWalkTotal = {
   walkCount: number;
@@ -170,6 +173,7 @@ export function HomeScreen({
   const isFocusedRef = useRef(isFocused);
   const lookIdleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [lookIdleEpoch, setLookIdleEpoch] = useState(0);
+  const showEmptyRoomStillRef = useRef(false);
 
   const total = todayTotal ?? getDefaultTodayTotal();
 
@@ -228,6 +232,34 @@ export function HomeScreen({
     action === null &&
     homeForceEmptyRoom &&
     canShowEmptyRoomAfterBackground;
+
+  useEffect(() => {
+    showEmptyRoomStillRef.current = showEmptyRoomStill;
+  }, [showEmptyRoomStill]);
+
+  const voiceRecognitionEnabled =
+    Platform.OS !== 'web' &&
+    isFocused &&
+    action === null &&
+    !!dogManifest &&
+    !!dogState.breed &&
+    dogState.name.trim().length > 0;
+
+  const handleVoiceNameMatched = useCallback(() => {
+    if (actionRef.current !== null) return;
+    bumpLookIdleTimer();
+    if (showEmptyRoomStillRef.current) {
+      startAction('emptyWake');
+      return;
+    }
+    startAction('nameCall');
+  }, []);
+
+  useDogNameSpeechRecognition({
+    enabled: voiceRecognitionEnabled,
+    dogName: dogState.name,
+    onNameMatched: handleVoiceNameMatched,
+  });
 
   const canScheduleIdleLook = useMemo(() => {
     return (
@@ -533,6 +565,10 @@ export function HomeScreen({
   function handleActionEnd() {
     setAction(null);
     setActionMeta(null);
+    if (!ANDROID_SIMPLE_VIDEO) {
+      setVideoReplayKey((prev) => prev + 1);
+    }
+    bumpLookIdleTimer();
   }
 
   function handleAmbientVideoEnd() {
@@ -541,6 +577,9 @@ export function HomeScreen({
     if (action !== null) return;
 
     setAmbientIdleBridge(true);
+    if (!ANDROID_SIMPLE_VIDEO) {
+      setVideoReplayKey((prev) => prev + 1);
+    }
 
     if (ambientReplayTimerRef.current) {
       clearTimeout(ambientReplayTimerRef.current);
@@ -681,7 +720,16 @@ export function HomeScreen({
         </View>
       </View>
 
-      <View style={styles.uiLayer} pointerEvents="box-none">
+      <View
+        style={[
+          styles.uiLayer,
+          {
+            paddingBottom:
+              28 + Math.max(insets.bottom, Platform.OS === 'android' ? 12 : 0),
+          },
+        ]}
+        pointerEvents="box-none"
+      >
         <View style={styles.topSection} pointerEvents="none">
           <Text style={styles.name}>{dogState.name}</Text>
 
@@ -779,7 +827,6 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
     paddingHorizontal: 24,
     paddingTop: 56,
-    paddingBottom: 28,
     zIndex: 10,
   },
   topSection: {
@@ -893,14 +940,12 @@ const styles = StyleSheet.create({
   statusIconItem: {
     width: 54,
     height: 54,
-    borderRadius: 27,
-    backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
   },
   statusIcon: {
-    width: 28,
-    height: 28,
+    width: 54,
+    height: 54,
     resizeMode: 'contain',
   },
   statusIconText: {
