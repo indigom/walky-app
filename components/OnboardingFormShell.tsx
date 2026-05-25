@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react';
+import type { ReactNode, RefObject } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -19,7 +19,7 @@ import {
 import { useKeyboardInset } from '../utils/useKeyboardInset';
 
 type Props = {
-  scrollRef?: ScrollViewProps['ref'];
+  scrollRef?: RefObject<ScrollView | null>;
   headerRows?: number;
   children: ReactNode;
   contentContainerStyle?: ScrollViewProps['contentContainerStyle'];

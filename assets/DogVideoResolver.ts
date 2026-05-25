@@ -8,6 +8,16 @@ const THREE_DAY_MS = 3 * DAY_MS;
 const IDLE_POOL = ['idle01.mp4', 'idle02.mp4', 'idle03.mp4'] as const;
 const HAPPY_POOL = ['happy01.mp4', 'happy02.mp4', 'happy03.mp4'] as const;
 
+/** 홈 idle 중 이름 호출(nameCall) 시 우선 재생 (manifest에 있을 때만) */
+export const NAME_CALL_LOOK_CLIP = 'look02.mp4';
+
+function resolveNameCallClipFile(manifest: DogAssetManifest): string {
+  const lookList = manifest.videos.look ?? [];
+  if (lookList.includes(NAME_CALL_LOOK_CLIP)) return NAME_CALL_LOOK_CLIP;
+  if (lookList.length > 0) return lookList[0]!;
+  return FALLBACK_CLIP.look;
+}
+
 /** 품종별 앱 세션당 idle 1회 고정 랜덤 */
 const sessionIdleFileByBreed = new Map<Breed, string>();
 
@@ -181,6 +191,8 @@ function toPath(
       extras.petHappyFile.length > 0
         ? extras.petHappyFile
         : pickHappyFile(manifest);
+  } else if (extras?.action === 'nameCall') {
+    fileName = resolveNameCallClipFile(manifest);
   } else {
     fileName = clipFileForState(state, manifest);
   }

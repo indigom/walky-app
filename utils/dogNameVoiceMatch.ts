@@ -4,8 +4,11 @@
  * - 너무 짧은 이름(실질 1글자)은 텍스트에 그 글자가 단독·호칭으로만 나오면 매칭합니다.
  */
 
+const NAME_MATCH_STRIP_RE =
+  /[\s,.!?~…·\u2018\u2019\u201c\u201d'"`\-—]/g;
+
 export function normalizeForNameMatch(raw: string): string {
-  return raw.replace(/[\s,.!?~…·'"""''\-—]/g, '');
+  return raw.replace(NAME_MATCH_STRIP_RE, '');
 }
 
 /** 등록 이름에서 부를 때 나올 수 있는 문자열 목록 */

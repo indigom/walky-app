@@ -11,6 +11,7 @@ import {
 } from 'react';
 
 import {
+  Alert,
   Animated,
   Image,
   Platform,
@@ -47,6 +48,10 @@ import {
 
 import type { DogState, DogAssetManifest, DogAction } from '../types';
 import { getBreedEmptyRoomImageSource } from '../constants/breedEmptyRoomImages';
+import {
+  FEED_POINT_COST,
+  INSUFFICIENT_POINTS_MESSAGE,
+} from '../constants/points';
 import { ANDROID_SIMPLE_VIDEO } from '../utils/dogVisualPlatform';
 import { useDogNameSpeechRecognition } from '../utils/useDogNameSpeechRecognition';
 
@@ -436,7 +441,14 @@ export function HomeScreen({
 
     const playback = resolveDogVideoPlayback(dogState, dogManifest, extras);
 
-    if (!playback?.path) return;
+    if (!playback?.path) {
+      if (__DEV__ && nextAction === 'nameCall') {
+        console.log(
+          '[HomeScreen] nameCall: look clip missing — sync breed assets or add look02 to server manifest'
+        );
+      }
+      return;
+    }
 
     setAction(nextAction);
     setActionMeta(playback);
@@ -548,6 +560,11 @@ export function HomeScreen({
   function handleFeed() {
     if (action !== null) return;
 
+    if ((dogState.points ?? 0) < FEED_POINT_COST) {
+      Alert.alert('포인트 부족', INSUFFICIENT_POINTS_MESSAGE);
+      return;
+    }
+
     bumpLookIdleTimer();
     clearLongBackgroundEmpty();
     startAction('eat');
@@ -559,6 +576,7 @@ export function HomeScreen({
       affection: clampStat(prev.affection + 3),
       hungerReachedMaxAt: null,
       lastFedAt: new Date().toISOString(),
+      points: Math.max(0, (prev.points ?? 0) - FEED_POINT_COST),
     }));
   }
 
@@ -672,17 +690,31 @@ export function HomeScreen({
         <Feather name="settings" size={22} color="#ffffff" />
       </Pressable>
 
-      <TouchableOpacity
-        style={[styles.feedButton, action !== null && styles.feedButtonDisabled]}
-        activeOpacity={0.82}
-        onPress={handleFeed}
-        disabled={action !== null}
-      >
-        <Image
-          source={require('../assets/images/feed-button.png')}
-          style={styles.feedIcon}
-        />
-      </TouchableOpacity>
+      <View style={styles.feedColumn} pointerEvents="box-none">
+        <View style={styles.pointsBadge} pointerEvents="none">
+          <Text style={styles.pointsBadgeLabel}>P</Text>
+          <Text style={styles.pointsBadgeValue}>
+            {Math.max(0, Math.floor(dogState.points ?? 0))}
+          </Text>
+        </View>
+
+        <TouchableOpacity
+          style={[
+            styles.feedButton,
+            (action !== null ||
+              (dogState.points ?? 0) < FEED_POINT_COST) &&
+              styles.feedButtonDisabled,
+          ]}
+          activeOpacity={0.82}
+          onPress={handleFeed}
+          disabled={action !== null}
+        >
+          <Image
+            source={require('../assets/images/feed-button.png')}
+            style={styles.feedIcon}
+          />
+        </TouchableOpacity>
+      </View>
 
       <View style={styles.statusIconColumn} pointerEvents="none">
         <View style={styles.statusIconItem}>
@@ -800,19 +832,45 @@ const styles = StyleSheet.create({
     zIndex: 50,
     elevation: 50,
   },
-  feedButton: {
+  feedColumn: {
     position: 'absolute',
     top: '50%',
     right: 22,
+    marginTop: -42,
+    alignItems: 'center',
+    zIndex: 50,
+    elevation: 50,
+  },
+  pointsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.55)',
+    borderRadius: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 3,
+    marginBottom: 6,
+    minWidth: 54,
+    justifyContent: 'center',
+  },
+  pointsBadgeLabel: {
+    color: '#FFD86B',
+    fontSize: 11,
+    fontWeight: '800',
+    marginRight: 4,
+    letterSpacing: 0.5,
+  },
+  pointsBadgeValue: {
+    color: '#FFFFFF',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  feedButton: {
     width: 54,
     height: 54,
     borderRadius: 27,
-    marginTop: -27,
     backgroundColor: 'rgba(255,255,255,0.9)',
     alignItems: 'center',
     justifyContent: 'center',
-    zIndex: 50,
-    elevation: 50,
   },
   feedButtonDisabled: {
     opacity: 0.55,

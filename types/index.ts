@@ -81,6 +81,9 @@ export type DogState = {
   notifFed8hForLastFedAt?: string | null;
   /** 24시간 미산책 알림을 보낸 `lastWalkAt` 값 */
   notifWalk24hForLastWalkAt?: string | null;
+
+  /** 산책 보상 포인트 — 사료 급여 시 차감. 산책 1km당 적립 */
+  points: number;
 };
 
 export type DogAssetManifest = {

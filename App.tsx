@@ -30,6 +30,7 @@ import {
   syncRemoteBreedAssets,
 } from './assets/BreedAssetManager';
 import { WALKY_ASSET_ORIGIN } from './constants/assetServer';
+import { INITIAL_POINTS, pointsEarnedForWalk } from './constants/points';
 import { applyDogWallClockAndNotify } from './utils/dogWallClock';
 import {
   applyForegroundAfterBackground,
@@ -146,6 +147,8 @@ const INITIAL_DOG_STATE: DogState = {
   lastStatsTickAt: null,
   notifFed8hForLastFedAt: null,
   notifWalk24hForLastWalkAt: null,
+
+  points: INITIAL_POINTS,
 };
 
 function getDateKey(date = new Date()): string {
@@ -167,6 +170,10 @@ function normalizeDogStateFromStorage(
     ...INITIAL_DOG_STATE,
     ...(raw as DogState),
   };
+
+  if (typeof merged.points !== 'number' || !Number.isFinite(merged.points)) {
+    merged.points = INITIAL_POINTS;
+  }
 
   const legacyWalk = legacy.walkDesire;
   if (typeof legacyWalk === 'number' && Number.isFinite(legacyWalk)) {
@@ -702,10 +709,12 @@ export default function App() {
               onDiscardWalk={() => navigation.replace('Home')}
               onFinishWalk={(summary) => {
                 const newRecord = createWalkRecord(summary);
+                const earnedPoints = pointsEarnedForWalk(summary.distanceKm);
 
                 setDogState((prev) => ({
                   ...prev,
                   lastWalkAt: newRecord.endedAt,
+                  points: (prev.points ?? 0) + earnedPoints,
                 }));
 
                 setWalkRecords((prev) => [...prev, newRecord]);
