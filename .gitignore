@@ -40,3 +40,6 @@ yarn-error.*
 # generated native folders
 /ios
 /android
+
+# legacy local video archive (served from walky.co.kr/dogs/)
+assets/videos/
