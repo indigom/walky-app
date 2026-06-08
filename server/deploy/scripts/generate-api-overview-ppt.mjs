@@ -218,7 +218,7 @@ addBulletSlide('견종 영상·manifest 다운로드', [
   '영상: …/dogs/{breed}/idle01.mp4 등',
   '코드: assets/BreedAssetManager.ts, constants/walkyServer.ts',
   '쓰는 화면: 품종 선택 → 로컬 캐시 후 홈/산책 재생',
-  '백업 호스트: EXPO_PUBLIC_WALKY_ASSET_FALLBACK_ORIGIN (선택)',
+  '백업 CDN: EXPO_PUBLIC_WALKY_ASSET_FALLBACK_ORIGIN (선택, 미설정 = walky.co.kr만)',
 ]);
 
 addCodeSlide('.env — 에셋·API URL', [

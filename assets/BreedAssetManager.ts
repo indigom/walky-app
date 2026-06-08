@@ -13,7 +13,10 @@ let activeAssetOrigin = WALKY_ASSET_ORIGIN;
 
 function assetOriginsToTry(): string[] {
   const list = [WALKY_ASSET_ORIGIN];
-  if (WALKY_ASSET_FALLBACK_ORIGIN !== WALKY_ASSET_ORIGIN) {
+  if (
+    WALKY_ASSET_FALLBACK_ORIGIN &&
+    WALKY_ASSET_FALLBACK_ORIGIN !== WALKY_ASSET_ORIGIN
+  ) {
     list.push(WALKY_ASSET_FALLBACK_ORIGIN);
   }
   return list;
