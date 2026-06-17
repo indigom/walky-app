@@ -112,6 +112,8 @@ const MAX_HORIZONTAL_ACCURACY_M = 68;
 
 const CHEER_INTERVAL_SEC = 5 * 60;
 const CHEER_VISIBLE_MS = 60 * 1000;
+/** 시뮬레이션·Android 백그라운드 보정과 동일 (초당 2보) */
+const ESTIMATED_STEPS_PER_SECOND = 2;
 
 function getCheerMessageIndex(elapsedSeconds: number): number {
   return Math.floor(elapsedSeconds / CHEER_INTERVAL_SEC);
@@ -167,6 +169,10 @@ export function WalkScreen({
   const stepsBaselineRef = useRef(0);
   const stepsLiveRef = useRef(0);
   const pedometerSessionStartRef = useRef<number | null>(null);
+  const walkBackgroundAtMsRef = useRef<number | null>(null);
+  const stepsSnapshotAtBackgroundRef = useRef(0);
+  const pedometerActiveRef = useRef(false);
+  const useStepSimulationRef = useRef(Platform.OS === 'web');
   const gpsMetersRef = useRef(0);
   const lastFixRef = useRef<{ lat: number; lon: number } | null>(null);
   const lastGpsCoordsRef = useRef<{ latitude: number; longitude: number } | null>(
@@ -194,11 +200,56 @@ export function WalkScreen({
   };
 
   const catchUpSimulatedSteps = (durationSeconds: number) => {
-    if (!useStepSimulation) return;
-    const target = durationSeconds * 2;
+    if (!useStepSimulationRef.current) return;
+    const target = durationSeconds * ESTIMATED_STEPS_PER_SECOND;
     if (stepsLiveRef.current >= target) return;
-    stepsLiveRef.current = target;
-    setSteps(target);
+    commitSteps(target);
+  };
+
+  const commitSteps = (total: number) => {
+    const next = Math.max(0, Math.round(total));
+    stepsLiveRef.current = next;
+    setSteps(next);
+  };
+
+  const syncPedometerAfterBackground = async (backgroundStartedAtMs: number) => {
+    if (
+      isPausedRef.current ||
+      useStepSimulationRef.current ||
+      !pedometerActiveRef.current
+    ) {
+      return;
+    }
+
+    const until = new Date();
+    const since = new Date(backgroundStartedAtMs);
+    const bgSeconds = Math.max(
+      0,
+      Math.floor((until.getTime() - backgroundStartedAtMs) / 1000)
+    );
+    if (bgSeconds < 1) return;
+
+    const snapshot = stepsSnapshotAtBackgroundRef.current;
+    let bgSteps = 0;
+
+    if (Platform.OS === 'ios') {
+      try {
+        const result = await Pedometer.getStepCountAsync(since, until);
+        bgSteps = Math.max(0, result.steps ?? 0);
+      } catch {
+        bgSteps = bgSeconds * ESTIMATED_STEPS_PER_SECOND;
+      }
+    } else {
+      // Android: watchStepCount는 백그라운드에서 콜백이 오지 않음
+      bgSteps = bgSeconds * ESTIMATED_STEPS_PER_SECOND;
+    }
+
+    if (bgSteps > 0) {
+      commitSteps(snapshot + bgSteps);
+    }
+
+    stepsBaselineRef.current = stepsLiveRef.current;
+    pedometerSessionStartRef.current = null;
   };
 
   const walkPlayback = useMemo(() => {
@@ -372,6 +423,14 @@ export function WalkScreen({
   }, []);
 
   useEffect(() => {
+    pedometerActiveRef.current = pedometerActive;
+  }, [pedometerActive]);
+
+  useEffect(() => {
+    useStepSimulationRef.current = useStepSimulation;
+  }, [useStepSimulation]);
+
+  useEffect(() => {
     isPausedRef.current = isPaused;
   }, [isPaused]);
 
@@ -379,16 +438,31 @@ export function WalkScreen({
     const onChange = (state: AppStateStatus) => {
       const active = state === 'active';
       setAppIsActive(active);
+
+      if (state === 'background' && !isPausedRef.current) {
+        walkBackgroundAtMsRef.current = Date.now();
+        stepsSnapshotAtBackgroundRef.current = stepsLiveRef.current;
+        stepsBaselineRef.current = stepsLiveRef.current;
+        pedometerSessionStartRef.current = null;
+        return;
+      }
+
       if (!active) return;
+
+      const bgAt = walkBackgroundAtMsRef.current;
+      walkBackgroundAtMsRef.current = null;
+
       const sec = flushWalkClock();
-      if (!isPausedRef.current && useStepSimulation) {
+      if (!isPausedRef.current && useStepSimulationRef.current) {
         catchUpSimulatedSteps(sec);
+      } else if (!isPausedRef.current && pedometerActiveRef.current && bgAt) {
+        void syncPedometerAfterBackground(bgAt);
       }
     };
 
     const sub = AppState.addEventListener('change', onChange);
     return () => sub.remove();
-  }, [useStepSimulation]);
+  }, []);
 
   useEffect(() => {
     if (isPaused) return;
@@ -403,16 +477,15 @@ export function WalkScreen({
     if (!useStepSimulation || isPaused) return;
 
     const intervalId = setInterval(() => {
-      if (!appIsActive) return;
       setSteps((prev) => {
-        const next = prev + 2;
+        const next = prev + ESTIMATED_STEPS_PER_SECOND;
         stepsLiveRef.current = next;
         return next;
       });
     }, 1000);
 
     return () => clearInterval(intervalId);
-  }, [useStepSimulation, isPaused, appIsActive]);
+  }, [useStepSimulation, isPaused]);
 
   useEffect(() => {
     if (Platform.OS === 'web') return;
@@ -462,8 +535,7 @@ export function WalkScreen({
       const sessionSteps =
         result.steps - pedometerSessionStartRef.current;
       const total = stepsBaselineRef.current + Math.max(0, sessionSteps);
-      stepsLiveRef.current = total;
-      setSteps(total);
+      commitSteps(total);
     });
 
     return () => {

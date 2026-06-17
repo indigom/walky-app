@@ -154,6 +154,14 @@ function FloatingHeart({
   );
 }
 
+function StatusStatBadge({ value }: { value: number }) {
+  return (
+    <View style={styles.statusBadge}>
+      <Text style={styles.statusBadgeText}>{Math.round(value)}</Text>
+    </View>
+  );
+}
+
 export function HomeScreen({
   dogState,
   setDogState,
@@ -722,7 +730,7 @@ export function HomeScreen({
             source={require('../assets/ui/status-mood.png')}
             style={styles.statusIcon}
           />
-          <Text style={styles.statusIconText}>{Math.round(dogState.mood)}</Text>
+          <StatusStatBadge value={dogState.mood} />
         </View>
 
         <View style={styles.statusIconItem}>
@@ -730,7 +738,7 @@ export function HomeScreen({
             source={require('../assets/ui/status-energy.png')}
             style={styles.statusIcon}
           />
-          <Text style={styles.statusIconText}>{Math.round(dogState.energy)}</Text>
+          <StatusStatBadge value={dogState.energy} />
         </View>
 
         <View style={styles.statusIconItem}>
@@ -738,7 +746,7 @@ export function HomeScreen({
             source={require('../assets/ui/status-hunger.png')}
             style={styles.statusIcon}
           />
-          <Text style={styles.statusIconText}>{Math.round(dogState.hunger)}</Text>
+          <StatusStatBadge value={dogState.hunger} />
         </View>
 
         <View style={styles.statusIconItem}>
@@ -746,9 +754,7 @@ export function HomeScreen({
             source={require('../assets/ui/status-affection.png')}
             style={styles.statusIcon}
           />
-          <Text style={styles.statusIconText}>
-            {Math.round(dogState.affection)}
-          </Text>
+          <StatusStatBadge value={dogState.affection} />
         </View>
       </View>
 
@@ -836,7 +842,7 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: '50%',
     right: 22,
-    marginTop: -42,
+    marginTop: -64,
     alignItems: 'center',
     zIndex: 50,
     elevation: 50,
@@ -865,10 +871,8 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   feedButton: {
-    width: 54,
-    height: 54,
-    borderRadius: 27,
-    backgroundColor: 'rgba(255,255,255,0.9)',
+    width: 70,
+    height: 70,
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -876,8 +880,8 @@ const styles = StyleSheet.create({
     opacity: 0.55,
   },
   feedIcon: {
-    width: 34,
-    height: 34,
+    width: 64,
+    height: 64,
     resizeMode: 'contain',
   },
   uiLayer: {
@@ -988,7 +992,7 @@ const styles = StyleSheet.create({
   },
   statusIconColumn: {
     position: 'absolute',
-    top: 118,
+    top: 162,
     left: 22,
     width: 54,
     zIndex: 50,
@@ -1006,12 +1010,22 @@ const styles = StyleSheet.create({
     height: 54,
     resizeMode: 'contain',
   },
-  statusIconText: {
+  statusBadge: {
     position: 'absolute',
-    top: 5,
-    right: 7,
-    fontSize: 12,
+    top: 0,
+    right: 0,
+    minWidth: 22,
+    height: 22,
+    borderRadius: 11,
+    backgroundColor: '#FFFFFF',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingHorizontal: 5,
+  },
+  statusBadgeText: {
+    fontSize: 11,
     fontWeight: '900',
     color: '#111827',
+    lineHeight: 13,
   },
 });

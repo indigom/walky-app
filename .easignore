@@ -1,2 +1,6 @@
 # Legacy video archive — served from walky.co.kr/dogs/, not bundled in app
 assets/videos/
+
+# Native folders are generated at EAS build from app.json (avoids stale app_name etc.)
+/android
+/ios
