@@ -124,7 +124,8 @@ const WALK_RECORDS_STORAGE_KEY = 'walky_walk_records';
 const REWARD_PROGRESS_STORAGE_KEY = 'walky_reward_progress';
 const DAILY_REWARD_UNLOCKS_STORAGE_KEY = 'walky_daily_reward_unlocks';
 
-const DEV_ALWAYS_ONBOARDING = true;
+/** 개발용: true면 앱 실행마다 온보딩·저장 데이터 초기화. 배포/일반 사용 시 false */
+const DEV_ALWAYS_ONBOARDING = false;
 const DAILY_REWARD_DISTANCE_KM = 5;
 
 const INITIAL_DOG_STATE: DogState = {

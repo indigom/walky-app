@@ -19,7 +19,19 @@
         "buildType": "apk"
       }
     },
-    "production": {}
+    "production": {
+      "autoIncrement": true,
+      "distribution": "internal",
+      "android": {
+        "buildType": "apk"
+      },
+      "env": {
+        "EXPO_PUBLIC_WALKY_ORIGIN": "https://walky.co.kr",
+        "EXPO_PUBLIC_NEARBY_WALKER_API_URL": "https://walky-app-production-ace0.up.railway.app/api/nearby/presence",
+        "EXPO_PUBLIC_NEARBY_SOCIAL_API_URL": "https://walky-app-production-ace0.up.railway.app/api/nearby/social",
+        "EXPO_PUBLIC_PROFILE_API_URL": "https://walky-app-production-ace0.up.railway.app/api/profile"
+      }
+    }
   },
   "submit": {
     "production": {}

@@ -10,8 +10,10 @@
     "web": "expo start --web",
     "eas:dev:ios": "eas build --profile development --platform ios",
     "eas:dev:android": "eas build --profile development --platform android",
+    "eas:prod:android": "eas build --profile production --platform android",
     "generate:ppt:api": "node server/deploy/scripts/generate-api-overview-ppt.mjs",
-    "generate:ppt:profile": "node server/deploy/scripts/generate-profile-photo-api-ppt.mjs"
+    "generate:ppt:profile": "node server/deploy/scripts/generate-profile-photo-api-ppt.mjs",
+    "generate:ppt:architecture": "node server/deploy/scripts/generate-architecture-ppt.mjs"
   },
   "dependencies": {
     "@react-native-async-storage/async-storage": "2.2.0",

@@ -23,6 +23,7 @@ EXPO_PUBLIC_NEARBY_WALKER_API_URL=https://walky.co.kr/api/nearby/presence
 
 | 파일 | 내용 |
 |------|------|
+| **`Walky-구조도.pptx`** | **전체 구조도** — App, GitHub, Railway, Cloudflare R2, walky.co.kr, EAS |
 | **`Walky-API-필요구간-정리.pptx`** | API·배포 + **알림(로컬 vs 서버 푸시)**·푸시 로드맵 |
 | **`Walky-프로필사진-업로드API.pptx`** | 프로필·닉네임 SFTP 업로드 설계 |
 
@@ -30,6 +31,7 @@ EXPO_PUBLIC_NEARBY_WALKER_API_URL=https://walky.co.kr/api/nearby/presence
 
 ```bash
 npm install
+npm run generate:ppt:architecture
 npm run generate:ppt:api
 npm run generate:ppt:profile
 ```

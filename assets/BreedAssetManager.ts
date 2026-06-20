@@ -30,6 +30,18 @@ function getLocalManifestPath(breed: Breed): string {
   return `${getBreedFolder(breed)}manifest.json`;
 }
 
+function getVideoMetaPath(breed: Breed): string {
+  return `${getBreedFolder(breed)}video-meta.json`;
+}
+
+type RemoteVideoMeta = {
+  etag: string | null;
+  lastModified: string | null;
+  size: number | null;
+};
+
+type StoredVideoMetaFile = Record<string, RemoteVideoMeta>;
+
 function getRemoteManifestUrl(origin: string, breed: Breed): string {
   return `${origin}/dogs/${breed}/manifest.json`;
 }
@@ -52,6 +64,10 @@ function getAllVideoFileNames(manifest: DogAssetManifest): string[] {
   return Object.values(manifest.videos)
     .filter((value): value is string[] => Array.isArray(value))
     .flat();
+}
+
+function getUniqueVideoFileNames(manifest: DogAssetManifest): string[] {
+  return [...new Set(getAllVideoFileNames(manifest))];
 }
 
 function parseManifestJson(text: string, url: string): DogAssetManifest {
@@ -137,6 +153,172 @@ async function downloadVideo(
   return localPath;
 }
 
+async function loadStoredVideoMeta(breed: Breed): Promise<StoredVideoMetaFile> {
+  const path = getVideoMetaPath(breed);
+  const info = await FileSystem.getInfoAsync(path);
+  if (!info.exists) return {};
+
+  try {
+    const content = await FileSystem.readAsStringAsync(path);
+    return JSON.parse(content) as StoredVideoMetaFile;
+  } catch {
+    return {};
+  }
+}
+
+async function saveStoredVideoMeta(
+  breed: Breed,
+  meta: StoredVideoMetaFile
+): Promise<void> {
+  await FileSystem.writeAsStringAsync(
+    getVideoMetaPath(breed),
+    JSON.stringify(meta)
+  );
+}
+
+async function fetchRemoteVideoMeta(
+  breed: Breed,
+  fileName: string
+): Promise<RemoteVideoMeta | null> {
+  const url = getRemoteVideoUrl(breed, fileName);
+
+  try {
+    const res = await fetch(url, { method: 'HEAD' });
+    if (!res.ok) return null;
+
+    const etag = res.headers.get('etag');
+    const lastModified = res.headers.get('last-modified');
+    const contentLength = res.headers.get('content-length');
+    const parsedSize = contentLength ? Number.parseInt(contentLength, 10) : NaN;
+
+    return {
+      etag: etag?.replace(/^W\//, '') ?? null,
+      lastModified,
+      size: Number.isFinite(parsedSize) ? parsedSize : null,
+    };
+  } catch {
+    return null;
+  }
+}
+
+function remoteMetaMatches(
+  stored: RemoteVideoMeta | undefined,
+  remote: RemoteVideoMeta
+): boolean {
+  if (!stored) return false;
+
+  if (stored.etag && remote.etag) {
+    return stored.etag === remote.etag;
+  }
+
+  if (
+    stored.lastModified &&
+    remote.lastModified &&
+    stored.size != null &&
+    remote.size != null
+  ) {
+    return (
+      stored.lastModified === remote.lastModified && stored.size === remote.size
+    );
+  }
+
+  if (stored.size != null && remote.size != null) {
+    return stored.size === remote.size;
+  }
+
+  return false;
+}
+
+function needsVideoDownload(
+  localExists: boolean,
+  previousFileNames: Set<string> | null,
+  fileName: string,
+  stored: RemoteVideoMeta | undefined,
+  remote: RemoteVideoMeta | null
+): boolean {
+  if (!localExists) return true;
+
+  if (previousFileNames && !previousFileNames.has(fileName)) {
+    return true;
+  }
+
+  if (!remote) return false;
+
+  if (!stored) return true;
+
+  return !remoteMetaMatches(stored, remote);
+}
+
+async function syncVideoFile(
+  breed: Breed,
+  fileName: string,
+  options: {
+    previousFileNames: Set<string> | null;
+    storedMeta: StoredVideoMetaFile;
+  }
+): Promise<void> {
+  const localPath = `${getBreedFolder(breed)}${fileName}`;
+  const fileInfo = await FileSystem.getInfoAsync(localPath);
+  const remoteMeta = await fetchRemoteVideoMeta(breed, fileName);
+  const stored = options.storedMeta[fileName];
+
+  const shouldDownload = needsVideoDownload(
+    fileInfo.exists,
+    options.previousFileNames,
+    fileName,
+    stored,
+    remoteMeta
+  );
+
+  if (shouldDownload) {
+    await downloadVideo(breed, fileName, { overwrite: fileInfo.exists });
+  }
+
+  if (remoteMeta) {
+    options.storedMeta[fileName] = remoteMeta;
+    return;
+  }
+
+  const updatedInfo = await FileSystem.getInfoAsync(localPath);
+  if (!updatedInfo.exists) return;
+
+  options.storedMeta[fileName] = {
+    etag: null,
+    lastModified: null,
+    size: 'size' in updatedInfo ? (updatedInfo.size ?? null) : null,
+  };
+}
+
+async function syncManifestVideos(
+  breed: Breed,
+  manifest: DogAssetManifest,
+  previousManifest: DogAssetManifest | null
+): Promise<void> {
+  const previousFileNames = previousManifest
+    ? new Set(getUniqueVideoFileNames(previousManifest))
+    : null;
+  const storedMeta = await loadStoredVideoMeta(breed);
+  const allVideos = getUniqueVideoFileNames(manifest);
+
+  for (const fileName of allVideos) {
+    try {
+      await syncVideoFile(breed, fileName, { previousFileNames, storedMeta });
+    } catch (e) {
+      const msg = e instanceof Error ? e.message : String(e);
+      throw new Error(`${fileName} 다운로드 실패\n${msg}`);
+    }
+  }
+
+  const prunedMeta: StoredVideoMetaFile = {};
+  for (const fileName of allVideos) {
+    if (storedMeta[fileName]) {
+      prunedMeta[fileName] = storedMeta[fileName];
+    }
+  }
+
+  await saveStoredVideoMeta(breed, prunedMeta);
+}
+
 export async function downloadBreedAssets(
   breed: Breed
 ): Promise<DogAssetManifest> {
@@ -145,31 +327,22 @@ export async function downloadBreedAssets(
   await ensureDir(folder);
 
   const manifest = await downloadManifest(breed);
+  const previousManifest = await loadLocalManifest(breed);
+
+  await syncManifestVideos(breed, manifest, previousManifest);
 
   const manifestPath = getLocalManifestPath(breed);
-
   await FileSystem.writeAsStringAsync(
     manifestPath,
     JSON.stringify(manifest)
   );
 
-  const allVideos = getAllVideoFileNames(manifest);
-
-  for (const fileName of allVideos) {
-    try {
-      await downloadVideo(breed, fileName);
-    } catch (e) {
-      const msg = e instanceof Error ? e.message : String(e);
-      throw new Error(`${fileName} 다운로드 실패\n${msg}`);
-    }
-  }
-
   return manifest;
 }
 
 /**
- * 원격 manifest.json을 항상 받아 로컬에 반영합니다.
- * 매니페스트 내용이 이전과 달라진 경우에만, 목록에 있는 영상을 서버 기준으로 다시 받습니다.
+ * 원격 manifest.json을 받아 로컬에 반영합니다.
+ * manifest에 나열된 영상 중 서버에서 갱신된 파일만 다시 받습니다.
  */
 export async function syncRemoteBreedAssets(
   breed: Breed
@@ -178,26 +351,16 @@ export async function syncRemoteBreedAssets(
 
   await ensureDir(folder);
 
-  const manifestPath = getLocalManifestPath(breed);
-  let previousSerialized: string | null = null;
-  const prevInfo = await FileSystem.getInfoAsync(manifestPath);
-  if (prevInfo.exists) {
-    previousSerialized = await FileSystem.readAsStringAsync(manifestPath);
-  }
-
+  const previousManifest = await loadLocalManifest(breed);
   const manifest = await downloadManifest(breed);
-  const nextSerialized = JSON.stringify(manifest);
 
-  await FileSystem.writeAsStringAsync(manifestPath, nextSerialized);
+  await syncManifestVideos(breed, manifest, previousManifest);
 
-  const manifestChanged =
-    previousSerialized === null || previousSerialized !== nextSerialized;
-
-  const allVideos = getAllVideoFileNames(manifest);
-
-  for (const fileName of allVideos) {
-    await downloadVideo(breed, fileName, { overwrite: manifestChanged });
-  }
+  const manifestPath = getLocalManifestPath(breed);
+  await FileSystem.writeAsStringAsync(
+    manifestPath,
+    JSON.stringify(manifest)
+  );
 
   return manifest;
 }
