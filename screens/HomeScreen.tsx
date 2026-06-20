@@ -13,6 +13,7 @@ import {
 import {
   Alert,
   Animated,
+  AppState,
   Image,
   Platform,
   Pressable,
@@ -20,6 +21,7 @@ import {
   Text,
   TouchableOpacity,
   View,
+  type AppStateStatus,
 } from 'react-native';
 
 import { Feather } from '@expo/vector-icons';
@@ -174,6 +176,11 @@ export function HomeScreen({
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
 
+  const [appIsActive, setAppIsActive] = useState(
+    () => AppState.currentState === 'active'
+  );
+  const [petTouchEpoch, setPetTouchEpoch] = useState(0);
+
   const [action, setAction] = useState<DogAction>(null);
   const [actionMeta, setActionMeta] = useState<ResolvedPlayback | null>(null);
   const [actionReplayKey, setActionReplayKey] = useState(0);
@@ -308,6 +315,19 @@ export function HomeScreen({
     setLookIdleEpoch((epoch) => epoch + 1);
   }
 
+  /** 백그라운드에서 영상·터치가 끊긴 뒤 홈을 다시 쓸 수 있게 복구 */
+  function resumeHomeAfterForeground() {
+    if (actionRef.current !== null) {
+      setAction(null);
+      setActionMeta(null);
+    }
+
+    setAmbientIdleBridge(false);
+    setVideoReplayKey((prev) => prev + 1);
+    setPetTouchEpoch((prev) => prev + 1);
+    bumpLookIdleTimer();
+  }
+
   const dialogue = useMemo(() => {
     if (action === 'pet') {
       return getDogDialogue(dogState, 'pet');
@@ -352,8 +372,22 @@ export function HomeScreen({
     if (!isFocused) return;
     const nowIso = new Date().toISOString();
     setDogState((prev) => applyDogWallClockAndNotify(prev, nowIso));
-    bumpLookIdleTimer();
+    resumeHomeAfterForeground();
   }, [isFocused, setDogState]);
+
+  useEffect(() => {
+    const onAppStateChange = (nextState: AppStateStatus) => {
+      const active = nextState === 'active';
+      setAppIsActive(active);
+
+      if (!active || !isFocusedRef.current) return;
+
+      resumeHomeAfterForeground();
+    };
+
+    const sub = AppState.addEventListener('change', onAppStateChange);
+    return () => sub.remove();
+  }, []);
 
   useEffect(() => {
     const intervalId = setInterval(() => {
@@ -636,7 +670,7 @@ export function HomeScreen({
             actionPath={actionMeta?.path ?? null}
             actionLoop={actionMeta?.loop ?? false}
             actionReplayKey={actionReplayKey}
-            isScreenActive={isFocused}
+            isScreenActive={isFocused && appIsActive}
             muted={false}
             onActionEnd={handleActionEnd}
             onVideoEnd={handleAmbientVideoEnd}
@@ -671,6 +705,7 @@ export function HomeScreen({
       />
 
       <View
+        key={`pet-touch-${petTouchEpoch}`}
         style={styles.petTouchArea}
         onStartShouldSetResponder={() => true}
         onMoveShouldSetResponder={() => true}
