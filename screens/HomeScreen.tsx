@@ -48,7 +48,7 @@ import {
   type ResolvedPlayback,
 } from '../assets/DogVideoResolver';
 
-import type { DogState, DogAssetManifest, DogAction } from '../types';
+import type { DogState, DogAssetManifest, DogAction, WalkRecord } from '../types';
 import { getBreedEmptyRoomImageSource } from '../constants/breedEmptyRoomImages';
 import {
   FEED_POINT_COST,
@@ -56,6 +56,10 @@ import {
 } from '../constants/points';
 import { ANDROID_SIMPLE_VIDEO } from '../utils/dogVisualPlatform';
 import { useDogNameSpeechRecognition } from '../utils/useDogNameSpeechRecognition';
+import {
+  computeUserHealthIndex,
+  healthIndexAccentColor,
+} from '../utils/userHealthIndex';
 
 type TodayWalkTotal = {
   walkCount: number;
@@ -72,6 +76,7 @@ type Props = {
   onOpenWalkHistory: () => void;
   onOpenSettings: () => void;
   todayTotal?: TodayWalkTotal;
+  walkRecords?: WalkRecord[];
   dogManifest: DogAssetManifest | null;
 };
 
@@ -171,6 +176,7 @@ export function HomeScreen({
   onOpenWalkHistory,
   onOpenSettings,
   todayTotal,
+  walkRecords = [],
   dogManifest,
 }: Props) {
   const isFocused = useIsFocused();
@@ -196,6 +202,17 @@ export function HomeScreen({
   const showEmptyRoomStillRef = useRef(false);
 
   const total = todayTotal ?? getDefaultTodayTotal();
+
+  const userHealthIndex = useMemo(
+    () =>
+      computeUserHealthIndex(
+        walkRecords,
+        dogState.user?.targetWalkDistanceKm
+      ),
+    [walkRecords, dogState.user?.targetWalkDistanceKm]
+  );
+
+  const healthAccent = healthIndexAccentColor(userHealthIndex.score);
 
   const walkPreviewText =
     total.walkCount === 0 ? '오늘은 아직 산책 기록이 없어요.' : null;
@@ -813,11 +830,16 @@ export function HomeScreen({
         <View style={styles.bottomSection}>
           <View style={styles.walkSummaryCard}>
             <View style={styles.walkSummaryHeader}>
-              <View>
+              <View style={styles.walkSummaryHeaderLeft}>
                 <Text style={styles.walkSummaryTitle}>오늘의 산책</Text>
                 {walkPreviewText ? (
                   <Text style={styles.walkSummaryPreview}>{walkPreviewText}</Text>
-                ) : null}
+                ) : (
+                  <Text style={styles.walkSummaryPreview}>
+                    {total.walkCount}회 · {total.distanceKm.toFixed(1)}km ·{' '}
+                    {Math.floor(total.durationSeconds / 60)}분
+                  </Text>
+                )}
               </View>
 
               <TouchableOpacity
@@ -827,6 +849,38 @@ export function HomeScreen({
               >
                 <Text style={styles.historyButtonText}>기록 자세히 보기</Text>
               </TouchableOpacity>
+            </View>
+
+            <View style={styles.healthIndexSection}>
+              <View style={styles.healthIndexHeader}>
+                <Text style={styles.healthIndexTitle}>내 건강 지수</Text>
+                <Text style={[styles.healthIndexLabel, { color: healthAccent }]}>
+                  {userHealthIndex.label}
+                </Text>
+              </View>
+
+              <View style={styles.healthIndexScoreRow}>
+                <Text style={[styles.healthIndexScore, { color: healthAccent }]}>
+                  {userHealthIndex.score}
+                </Text>
+                <View style={styles.healthIndexBarTrack}>
+                  <View
+                    style={[
+                      styles.healthIndexBarFill,
+                      {
+                        width: `${userHealthIndex.score}%`,
+                        backgroundColor: healthAccent,
+                      },
+                    ]}
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.healthIndexDetail}>{userHealthIndex.detail}</Text>
+              <Text style={styles.healthIndexHint}>
+                목표 {userHealthIndex.targetKmPerDay}km/일 · 산책{' '}
+                {userHealthIndex.activeDays}/{userHealthIndex.lookbackDays}일
+              </Text>
             </View>
           </View>
 
@@ -946,7 +1000,12 @@ const styles = StyleSheet.create({
   walkSummaryHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginBottom: 14,
+  },
+  walkSummaryHeaderLeft: {
+    flex: 1,
+    paddingRight: 12,
   },
   walkSummaryTitle: {
     fontSize: 16,
@@ -957,7 +1016,60 @@ const styles = StyleSheet.create({
   walkSummaryPreview: {
     fontSize: 13,
     fontWeight: '600',
-    color: '#fff',
+    color: 'rgba(255,255,255,0.78)',
+  },
+  healthIndexSection: {
+    borderTopWidth: 1,
+    borderTopColor: 'rgba(255,255,255,0.12)',
+    paddingTop: 12,
+  },
+  healthIndexHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 8,
+  },
+  healthIndexTitle: {
+    fontSize: 13,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.88)',
+  },
+  healthIndexLabel: {
+    fontSize: 12,
+    fontWeight: '800',
+  },
+  healthIndexScoreRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+    marginBottom: 8,
+  },
+  healthIndexScore: {
+    fontSize: 28,
+    fontWeight: '900',
+    minWidth: 44,
+  },
+  healthIndexBarTrack: {
+    flex: 1,
+    height: 8,
+    borderRadius: 999,
+    backgroundColor: 'rgba(255,255,255,0.16)',
+    overflow: 'hidden',
+  },
+  healthIndexBarFill: {
+    height: '100%',
+    borderRadius: 999,
+  },
+  healthIndexDetail: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: 'rgba(255,255,255,0.82)',
+    marginBottom: 4,
+  },
+  healthIndexHint: {
+    fontSize: 11,
+    fontWeight: '500',
+    color: 'rgba(255,255,255,0.55)',
   },
   historyButton: {
     paddingHorizontal: 12,

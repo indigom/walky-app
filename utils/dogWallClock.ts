@@ -6,8 +6,14 @@ import {
   presentDogLocalNotification,
 } from './localNotifications';
 
-/** 홈 화면 interval 과 동일 (30초 틱: 배고픔 +1, 무드 −0.5 / 에너지는 경과 시간 비례) */
-export const DOG_STAT_TICK_INTERVAL_MS = 30000;
+/** 홈 화면 interval 과 동일 (30초 틱: 무드 −0.5 / 에너지는 경과 시간 비례) */
+export const DOG_STAT_TICK_INTERVAL_MS = 30_000;
+
+/**
+ * 배고픔 +1 틱 간격.
+ * 급여(−30) 후 80(배고픔 중)까지 약 6시간 → 활동 시간대에 하루 3회 정도 급여.
+ */
+export const HUNGER_TICK_INTERVAL_MS = 6 * 60 * 1000;
 
 /** 과거 날짜 수정 등으로 비정상적으로 긴 공백 방지 (30일) */
 const MAX_CATCH_UP_MS = 30 * 24 * 60 * 60 * 1000;
@@ -37,7 +43,8 @@ export function advanceDogStateForElapsedWallTime(
     MAX_CATCH_UP_MS,
     Math.max(0, toMs - fromMs)
   );
-  const ticks = Math.floor(elapsed / DOG_STAT_TICK_INTERVAL_MS);
+  const moodTicks = Math.floor(elapsed / DOG_STAT_TICK_INTERVAL_MS);
+  const hungerTicks = Math.floor(elapsed / HUNGER_TICK_INTERVAL_MS);
 
   let hunger = prev.hunger;
   let energy = prev.energy;
@@ -45,14 +52,16 @@ export function advanceDogStateForElapsedWallTime(
   let hungerReachedMaxAt = prev.hungerReachedMaxAt;
   let energyReachedMaxAt = prev.energyReachedMaxAt;
 
-  const baseMs = fromMs;
   const energyBefore = energy;
 
-  for (let i = 0; i < ticks; i++) {
-    const stepEndMs = baseMs + (i + 1) * DOG_STAT_TICK_INTERVAL_MS;
+  for (let i = 0; i < moodTicks; i++) {
+    mood = clampStat(mood - 0.5);
+  }
+
+  for (let i = 0; i < hungerTicks; i++) {
+    const stepEndMs = fromMs + (i + 1) * HUNGER_TICK_INTERVAL_MS;
 
     hunger = clampStat(hunger + 1);
-    mood = clampStat(mood - 0.5);
 
     if (hunger >= 100) {
       if (!hungerReachedMaxAt) {

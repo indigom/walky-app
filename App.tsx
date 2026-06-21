@@ -684,6 +684,7 @@ export default function App() {
               setDogState={setDogState}
               dogManifest={dogManifest}
               todayTotal={getTodayTotal(walkRecords)}
+              walkRecords={walkRecords}
               onOpenWalkHistory={() => navigation.navigate('WalkHistory')}
               onOpenSettings={() => navigation.navigate('Settings')}
               onStartWalk={() => navigation.navigate('Walk')}
