@@ -236,13 +236,9 @@ export function HomeScreen({
   }, [dogManifest]);
 
   const canShowEmptyRoomAfterBackground = useMemo(() => {
-    return (
-      ambientState === 'idle' &&
-      manifestHasEmptyClips &&
-      !!dogManifest &&
-      !!dogState.breed
-    );
-  }, [ambientState, manifestHasEmptyClips, dogManifest, dogState.breed]);
+    // 30분+ 복귀 시 wall clock으로 hunger/energy가 올라가 idle이 아닐 수 있음 — emptyroom은 그대로 표시
+    return manifestHasEmptyClips && !!dogManifest && !!dogState.breed;
+  }, [manifestHasEmptyClips, dogManifest, dogState.breed]);
 
   const homeForceEmptyRoom = dogState.homeForceEmptyRoom === true;
 
@@ -252,6 +248,8 @@ export function HomeScreen({
     action === null &&
     homeForceEmptyRoom &&
     canShowEmptyRoomAfterBackground;
+
+  const homeVideoActive = isFocused && appIsActive && !showEmptyRoomStill;
 
   useEffect(() => {
     showEmptyRoomStillRef.current = showEmptyRoomStill;
@@ -670,7 +668,7 @@ export function HomeScreen({
             actionPath={actionMeta?.path ?? null}
             actionLoop={actionMeta?.loop ?? false}
             actionReplayKey={actionReplayKey}
-            isScreenActive={isFocused && appIsActive}
+            isScreenActive={homeVideoActive}
             muted={false}
             onActionEnd={handleActionEnd}
             onVideoEnd={handleAmbientVideoEnd}
