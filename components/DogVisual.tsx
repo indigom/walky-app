@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef } from 'react';
-import { Animated, InteractionManager, StyleSheet, View } from 'react-native';
+import { Animated, AppState, InteractionManager, StyleSheet, View } from 'react-native';
 import { VideoView, useVideoPlayer } from 'expo-video';
 
 import {
@@ -54,6 +54,11 @@ export function DogVisual({
   const actionPathRef = useRef(actionPath);
   const lastLoadedBasePathRef = useRef<string | null>(null);
   const actionLoadGenRef = useRef(0);
+  const isScreenActiveRef = useRef(isScreenActive);
+  const mutedRef = useRef(muted);
+
+  isScreenActiveRef.current = isScreenActive;
+  mutedRef.current = muted;
 
   videoLoopRef.current = videoLoop;
   videoPathRef.current = videoPath;
@@ -76,6 +81,19 @@ export function DogVisual({
     player.muted = muted;
     player.pause();
   });
+
+  const suspendAllPlayback = useCallback(() => {
+    try {
+      basePlayerA.muted = true;
+      basePlayerB.muted = true;
+      actionPlayer.muted = true;
+      basePlayerA.pause();
+      basePlayerB.pause();
+      actionPlayer.pause();
+    } catch (e) {
+      console.log('DogVisual suspendAllPlayback', e);
+    }
+  }, [actionPlayer, basePlayerA, basePlayerB]);
 
   const getActiveBasePlayer = useCallback(() => {
     if (ANDROID_SIMPLE_VIDEO) {
@@ -162,8 +180,10 @@ export function DogVisual({
 
   const ensureBasePlaying = useCallback(
     (player: VideoPlayer, loop: boolean) => {
+      if (!isScreenActiveRef.current) return;
+
       try {
-        player.muted = muted;
+        player.muted = mutedRef.current;
         player.loop = loop;
         if (!player.playing) {
           player.play();
@@ -172,7 +192,7 @@ export function DogVisual({
         console.log('DogVisual ensureBasePlaying', e);
       }
     },
-    [muted]
+    []
   );
 
   const clearActionPlayer = useCallback(() => {
@@ -403,14 +423,17 @@ export function DogVisual({
   }, [actionPlayer, basePlayerA, basePlayerB]);
 
   useEffect(() => {
+    const sub = AppState.addEventListener('change', (nextState) => {
+      if (nextState === 'active') return;
+      suspendAllPlayback();
+    });
+
+    return () => sub.remove();
+  }, [suspendAllPlayback]);
+
+  useEffect(() => {
     if (!isScreenActive) {
-      try {
-        basePlayerA.pause();
-        basePlayerB.pause();
-        actionPlayer.pause();
-      } catch (e) {
-        console.log('DogVisual suspend', e);
-      }
+      suspendAllPlayback();
       return;
     }
 
@@ -434,6 +457,7 @@ export function DogVisual({
     actionPlayer,
     muted,
     resumeBasePlayback,
+    suspendAllPlayback,
   ]);
 
   useEffect(() => {
@@ -591,7 +615,7 @@ export function DogVisual({
           if (ANDROID_SIMPLE_VIDEO) {
             const base = basePlayerA;
             const path = videoPathRef.current;
-            if (path && base.status === 'readyToPlay') {
+            if (path && base.status === 'readyToPlay' && isScreenActiveRef.current) {
               ensureBasePlaying(base, videoLoopRef.current);
             }
           } else {
@@ -635,6 +659,7 @@ export function DogVisual({
 
   useEffect(() => {
     const restartIfLooping = (slot: BaseSlot) => {
+      if (!isScreenActiveRef.current) return;
       if (!videoLoopRef.current || actionPathRef.current) return;
       if (!ANDROID_SIMPLE_VIDEO && activeBaseSlotRef.current !== slot) {
         return;
@@ -672,7 +697,7 @@ export function DogVisual({
       }
 
       onVideoEnd?.();
-      if (videoPathRef.current && isScreenActive) {
+      if (videoPathRef.current && isScreenActiveRef.current) {
         resumeBasePlayback(!ANDROID_SIMPLE_VIDEO, true);
       }
     };
@@ -697,7 +722,7 @@ export function DogVisual({
     const player = basePlayerA;
     const sub = player.addListener('playingChange', ({ isPlaying }) => {
       if (isPlaying || actionPathRef.current) return;
-      if (!videoPathRef.current || !isScreenActive) return;
+      if (!videoPathRef.current || !isScreenActiveRef.current) return;
       if (player.status !== 'readyToPlay') return;
       ensureBasePlaying(player, videoLoopRef.current);
     });
