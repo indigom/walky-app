@@ -60,6 +60,7 @@ import {
   computeUserHealthIndex,
   healthIndexAccentColor,
 } from '../utils/userHealthIndex';
+import { getCombinedDogHappiness } from '../utils/dogHappiness';
 
 type TodayWalkTotal = {
   walkCount: number;
@@ -161,10 +162,23 @@ function FloatingHeart({
   );
 }
 
-function StatusStatBadge({ value }: { value: number }) {
+function StatusStatBadge({
+  value,
+  accentColor,
+}: {
+  value: number;
+  accentColor?: string;
+}) {
   return (
     <View style={styles.statusBadge}>
-      <Text style={styles.statusBadgeText}>{Math.round(value)}</Text>
+      <Text
+        style={[
+          styles.statusBadgeText,
+          accentColor ? { color: accentColor } : null,
+        ]}
+      >
+        {Math.round(value)}
+      </Text>
     </View>
   );
 }
@@ -213,6 +227,11 @@ export function HomeScreen({
   );
 
   const healthAccent = healthIndexAccentColor(userHealthIndex.score);
+
+  const dogHappiness = useMemo(
+    () => getCombinedDogHappiness(dogState.mood, dogState.affection),
+    [dogState.mood, dogState.affection]
+  );
 
   const walkPreviewText =
     total.walkCount === 0 ? '오늘은 아직 산책 기록이 없어요.' : null;
@@ -779,8 +798,9 @@ export function HomeScreen({
           <Image
             source={require('../assets/ui/status-mood.png')}
             style={styles.statusIcon}
+            accessibilityLabel="강아지 행복"
           />
-          <StatusStatBadge value={dogState.mood} />
+          <StatusStatBadge value={dogHappiness} />
         </View>
 
         <View style={styles.statusIconItem}>
@@ -803,8 +823,12 @@ export function HomeScreen({
           <Image
             source={require('../assets/ui/status-affection.png')}
             style={styles.statusIcon}
+            accessibilityLabel="내 건강 지수"
           />
-          <StatusStatBadge value={dogState.affection} />
+          <StatusStatBadge
+            value={userHealthIndex.score}
+            accentColor={healthAccent}
+          />
         </View>
       </View>
 
@@ -849,38 +873,6 @@ export function HomeScreen({
               >
                 <Text style={styles.historyButtonText}>기록 자세히 보기</Text>
               </TouchableOpacity>
-            </View>
-
-            <View style={styles.healthIndexSection}>
-              <View style={styles.healthIndexHeader}>
-                <Text style={styles.healthIndexTitle}>내 건강 지수</Text>
-                <Text style={[styles.healthIndexLabel, { color: healthAccent }]}>
-                  {userHealthIndex.label}
-                </Text>
-              </View>
-
-              <View style={styles.healthIndexScoreRow}>
-                <Text style={[styles.healthIndexScore, { color: healthAccent }]}>
-                  {userHealthIndex.score}
-                </Text>
-                <View style={styles.healthIndexBarTrack}>
-                  <View
-                    style={[
-                      styles.healthIndexBarFill,
-                      {
-                        width: `${userHealthIndex.score}%`,
-                        backgroundColor: healthAccent,
-                      },
-                    ]}
-                  />
-                </View>
-              </View>
-
-              <Text style={styles.healthIndexDetail}>{userHealthIndex.detail}</Text>
-              <Text style={styles.healthIndexHint}>
-                목표 {userHealthIndex.targetKmPerDay}km/일 · 산책{' '}
-                {userHealthIndex.activeDays}/{userHealthIndex.lookbackDays}일
-              </Text>
             </View>
           </View>
 
@@ -1001,7 +993,6 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 14,
   },
   walkSummaryHeaderLeft: {
     flex: 1,
@@ -1017,59 +1008,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: 'rgba(255,255,255,0.78)',
-  },
-  healthIndexSection: {
-    borderTopWidth: 1,
-    borderTopColor: 'rgba(255,255,255,0.12)',
-    paddingTop: 12,
-  },
-  healthIndexHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 8,
-  },
-  healthIndexTitle: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: 'rgba(255,255,255,0.88)',
-  },
-  healthIndexLabel: {
-    fontSize: 12,
-    fontWeight: '800',
-  },
-  healthIndexScoreRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 12,
-    marginBottom: 8,
-  },
-  healthIndexScore: {
-    fontSize: 28,
-    fontWeight: '900',
-    minWidth: 44,
-  },
-  healthIndexBarTrack: {
-    flex: 1,
-    height: 8,
-    borderRadius: 999,
-    backgroundColor: 'rgba(255,255,255,0.16)',
-    overflow: 'hidden',
-  },
-  healthIndexBarFill: {
-    height: '100%',
-    borderRadius: 999,
-  },
-  healthIndexDetail: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.82)',
-    marginBottom: 4,
-  },
-  healthIndexHint: {
-    fontSize: 11,
-    fontWeight: '500',
-    color: 'rgba(255,255,255,0.55)',
   },
   historyButton: {
     paddingHorizontal: 12,
