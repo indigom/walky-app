@@ -65,6 +65,13 @@ import {
   haversineDistanceMeters,
   resolveWalkOutcome,
 } from '../utils/walkMetrics';
+import {
+  cancelWalkBackgroundReminder,
+  cancelWalkSessionNotifications,
+  scheduleWalkBackgroundReminder,
+  scheduleWalkIdleReminder,
+  WALK_RESUME_PROMPT_MIN_ELAPSED_SEC,
+} from '../utils/walkSessionNotifications';
 
 type WalkScreenProps = {
   dogState: DogState;
@@ -112,8 +119,11 @@ const MAX_HORIZONTAL_ACCURACY_M = 68;
 
 const CHEER_INTERVAL_SEC = 5 * 60;
 const CHEER_VISIBLE_MS = 60 * 1000;
-/** 시뮬레이션·Android 백그라운드 보정과 동일 (초당 2보) */
-const ESTIMATED_STEPS_PER_SECOND = 2;
+/**
+ * Android: 백그라운드 중 Expo 만보기 콜백이 오지 않을 때 보수적 보정 (약 108보/분).
+ * 권한이 있고 산책 중일 때만, 포그라운드 복귀 시 백그라운드 구간에 한해 적용.
+ */
+const ANDROID_BG_STEPS_PER_SECOND = 1.8;
 
 function getCheerMessageIndex(elapsedSeconds: number): number {
   return Math.floor(elapsedSeconds / CHEER_INTERVAL_SEC);
@@ -145,9 +155,6 @@ export function WalkScreen({
   const [gpsDistanceKm, setGpsDistanceKm] = useState(0);
   const [gpsActive, setGpsActive] = useState(false);
   const [pedometerActive, setPedometerActive] = useState(false);
-  const [useStepSimulation, setUseStepSimulation] = useState(
-    Platform.OS === 'web'
-  );
   const [cheerBubbleVisible, setCheerBubbleVisible] = useState(false);
   const [nearbyWalkers, setNearbyWalkers] = useState<NearbyWalkerEntry[]>([]);
   const [nearbyListVisible, setNearbyListVisible] = useState(false);
@@ -172,7 +179,6 @@ export function WalkScreen({
   const walkBackgroundAtMsRef = useRef<number | null>(null);
   const stepsSnapshotAtBackgroundRef = useRef(0);
   const pedometerActiveRef = useRef(false);
-  const useStepSimulationRef = useRef(Platform.OS === 'web');
   const gpsMetersRef = useRef(0);
   const lastFixRef = useRef<{ lat: number; lon: number } | null>(null);
   const lastGpsCoordsRef = useRef<{ latitude: number; longitude: number } | null>(
@@ -182,6 +188,8 @@ export function WalkScreen({
   const pushTokenRef = useRef<string | null>(null);
   const lastCheerIndexRef = useRef(-1);
   const cheerHideTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const dogDisplayNameRef = useRef(dogState.name?.trim() || '강아지');
+  const finishWalkRef = useRef<() => void>(() => {});
 
   /** 일시정지가 아닌 동안만 흐르는 시간(백그라운드 포함) — 벽시계 기준 */
   const baseWalkMsRef = useRef(0);
@@ -199,25 +207,22 @@ export function WalkScreen({
     return sec;
   };
 
-  const catchUpSimulatedSteps = (durationSeconds: number) => {
-    if (!useStepSimulationRef.current) return;
-    const target = durationSeconds * ESTIMATED_STEPS_PER_SECOND;
-    if (stepsLiveRef.current >= target) return;
-    commitSteps(target);
-  };
-
   const commitSteps = (total: number) => {
     const next = Math.max(0, Math.round(total));
+    if (next > stepsLiveRef.current) {
+      recordWalkMovement();
+    }
     stepsLiveRef.current = next;
     setSteps(next);
   };
 
+  const recordWalkMovement = () => {
+    if (Platform.OS === 'web' || isPausedRef.current) return;
+    void scheduleWalkIdleReminder(dogDisplayNameRef.current);
+  };
+
   const syncPedometerAfterBackground = async (backgroundStartedAtMs: number) => {
-    if (
-      isPausedRef.current ||
-      useStepSimulationRef.current ||
-      !pedometerActiveRef.current
-    ) {
+    if (isPausedRef.current || !pedometerActiveRef.current) {
       return;
     }
 
@@ -232,16 +237,14 @@ export function WalkScreen({
     const snapshot = stepsSnapshotAtBackgroundRef.current;
     let bgSteps = 0;
 
-    if (Platform.OS === 'ios') {
-      try {
-        const result = await Pedometer.getStepCountAsync(since, until);
-        bgSteps = Math.max(0, result.steps ?? 0);
-      } catch {
-        bgSteps = bgSeconds * ESTIMATED_STEPS_PER_SECOND;
+    try {
+      const result = await Pedometer.getStepCountAsync(since, until);
+      bgSteps = Math.max(0, result.steps ?? 0);
+    } catch {
+      if (Platform.OS !== 'android') {
+        return;
       }
-    } else {
-      // Android: watchStepCount는 백그라운드에서 콜백이 오지 않음
-      bgSteps = bgSeconds * ESTIMATED_STEPS_PER_SECOND;
+      bgSteps = Math.round(bgSeconds * ANDROID_BG_STEPS_PER_SECOND);
     }
 
     if (bgSteps > 0) {
@@ -270,7 +273,6 @@ export function WalkScreen({
       pedometerActive,
       steps,
       strideMeters,
-      allowTimeEstimate: useStepSimulation,
     });
     return resolveWalkOutcome(steps, raw).distanceKm;
   }, [
@@ -280,7 +282,6 @@ export function WalkScreen({
     pedometerActive,
     steps,
     strideMeters,
-    useStepSimulation,
   ]);
 
   const calories = useMemo(() => {
@@ -423,12 +424,22 @@ export function WalkScreen({
   }, []);
 
   useEffect(() => {
-    pedometerActiveRef.current = pedometerActive;
-  }, [pedometerActive]);
+    dogDisplayNameRef.current = dogState.name?.trim() || '강아지';
+  }, [dogState.name]);
 
   useEffect(() => {
-    useStepSimulationRef.current = useStepSimulation;
-  }, [useStepSimulation]);
+    if (Platform.OS === 'web') return;
+
+    void scheduleWalkIdleReminder(dogDisplayNameRef.current);
+
+    return () => {
+      void cancelWalkSessionNotifications();
+    };
+  }, []);
+
+  useEffect(() => {
+    pedometerActiveRef.current = pedometerActive;
+  }, [pedometerActive]);
 
   useEffect(() => {
     isPausedRef.current = isPaused;
@@ -444,19 +455,40 @@ export function WalkScreen({
         stepsSnapshotAtBackgroundRef.current = stepsLiveRef.current;
         stepsBaselineRef.current = stepsLiveRef.current;
         pedometerSessionStartRef.current = null;
+        void scheduleWalkBackgroundReminder(dogDisplayNameRef.current);
         return;
       }
 
       if (!active) return;
 
+      void cancelWalkBackgroundReminder();
+
       const bgAt = walkBackgroundAtMsRef.current;
       walkBackgroundAtMsRef.current = null;
 
       const sec = flushWalkClock();
-      if (!isPausedRef.current && useStepSimulationRef.current) {
-        catchUpSimulatedSteps(sec);
-      } else if (!isPausedRef.current && pedometerActiveRef.current && bgAt) {
+      if (!isPausedRef.current && pedometerActiveRef.current && bgAt) {
         void syncPedometerAfterBackground(bgAt);
+      }
+
+      if (!isPausedRef.current && bgAt) {
+        const bgSeconds = Math.floor((Date.now() - bgAt) / 1000);
+        if (
+          bgSeconds >= 30 &&
+          sec >= WALK_RESUME_PROMPT_MIN_ELAPSED_SEC
+        ) {
+          Alert.alert(
+            '아직 산책 중이에요',
+            '산책을 마쳤다면 종료해 주세요.',
+            [
+              { text: '계속 산책', style: 'cancel' },
+              {
+                text: '산책 종료',
+                onPress: () => finishWalkRef.current(),
+              },
+            ]
+          );
+        }
       }
     };
 
@@ -474,20 +506,6 @@ export function WalkScreen({
   }, [isPaused]);
 
   useEffect(() => {
-    if (!useStepSimulation || isPaused) return;
-
-    const intervalId = setInterval(() => {
-      setSteps((prev) => {
-        const next = prev + ESTIMATED_STEPS_PER_SECOND;
-        stepsLiveRef.current = next;
-        return next;
-      });
-    }, 1000);
-
-    return () => clearInterval(intervalId);
-  }, [useStepSimulation, isPaused]);
-
-  useEffect(() => {
     if (Platform.OS === 'web') return;
 
     let cancelled = false;
@@ -497,7 +515,6 @@ export function WalkScreen({
       if (cancelled) return;
 
       if (!ok) {
-        setUseStepSimulation(true);
         setPedometerActive(false);
         return;
       }
@@ -506,13 +523,11 @@ export function WalkScreen({
       if (cancelled) return;
 
       if (!perm.granted) {
-        setUseStepSimulation(true);
         setPedometerActive(false);
         return;
       }
 
       setPedometerActive(true);
-      setUseStepSimulation(false);
     })();
 
     return () => {
@@ -594,6 +609,7 @@ export function WalkScreen({
 
           gpsMetersRef.current += d;
           setGpsDistanceKm(gpsMetersRef.current / 1000);
+          recordWalkMovement();
           maybeReportNearbyWalker(latitude, longitude);
         }
       );
@@ -619,9 +635,11 @@ export function WalkScreen({
         }
         flushWalkClock();
         stepsBaselineRef.current = stepsLiveRef.current;
+        void cancelWalkSessionNotifications();
       } else if (prev && !next) {
         walkingSegmentStartedAtRef.current = Date.now();
         flushWalkClock();
+        recordWalkMovement();
       }
       isPausedRef.current = next;
       return next;
@@ -809,16 +827,13 @@ export function WalkScreen({
   }
 
   function handleFinish() {
+    void cancelWalkSessionNotifications();
     void reportNearbyWalkerLeave();
     void leaveNearbySocial();
     const durationSeconds = flushWalkClock();
-    catchUpSimulatedSteps(durationSeconds);
 
     const weight = dogState.user?.weightKg ?? 0;
-    const stepsFinal =
-      useStepSimulation
-        ? Math.max(stepsLiveRef.current, durationSeconds * 2)
-        : stepsLiveRef.current;
+    const stepsFinal = stepsLiveRef.current;
 
     const rawDistanceKm = computeRawWalkDistanceKm({
       durationSeconds,
@@ -827,7 +842,6 @@ export function WalkScreen({
       pedometerActive,
       steps: stepsFinal,
       strideMeters,
-      allowTimeEstimate: useStepSimulation,
     });
 
     const outcome = resolveWalkOutcome(stepsFinal, rawDistanceKm);
@@ -836,7 +850,7 @@ export function WalkScreen({
       void reportNearbyWalkerLeave();
       Alert.alert(
         '산책 기록 안 됨',
-        '걸음이나 이동 거리가 너무 적어 산책으로 기록하지 않았어요.\n(최소 약 30m, 0.3m당 1보 이상)',
+        '걸음이나 이동 거리가 너무 적어 산책으로 기록하지 않았어요.\n(최소 약 30m, 0.7m당 1보 이상)',
         [{ text: '확인', onPress: onDiscardWalk }]
       );
       return;
@@ -869,6 +883,8 @@ export function WalkScreen({
       calories: caloriesFinal,
     });
   }
+
+  finishWalkRef.current = handleFinish;
 
   return (
     <View style={styles.container}>

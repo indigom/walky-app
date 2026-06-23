@@ -32,7 +32,12 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { DogVisual } from '../components/DogVisual';
 
-import { getDogDialogue, getIdleLookDialogue } from '../utils/dogDialogue';
+import {
+  EMPTY_ROOM_DIALOGUE_INTERVAL_MS,
+  getDogDialogue,
+  getEmptyRoomDialogue,
+  getIdleLookDialogue,
+} from '../utils/dogDialogue';
 import { applyDogWallClockAndNotify } from '../utils/dogWallClock';
 import {
   configureLocalNotificationHandler,
@@ -206,6 +211,11 @@ export function HomeScreen({
   const [actionReplayKey, setActionReplayKey] = useState(0);
   const [videoReplayKey, setVideoReplayKey] = useState(0);
   const [ambientIdleBridge, setAmbientIdleBridge] = useState(false);
+  /** emptyroom에서 깨운 뒤 배경을 idle 클립으로 고정 */
+  const [preferIdleBaseAfterEmpty, setPreferIdleBaseAfterEmpty] = useState(false);
+  const [emptyRoomDialogue, setEmptyRoomDialogue] = useState(() =>
+    getEmptyRoomDialogue()
+  );
   const [hearts, setHearts] = useState<Heart[]>([]);
   const lastHeartTimeRef = useRef(0);
   const ambientReplayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -291,6 +301,17 @@ export function HomeScreen({
     showEmptyRoomStillRef.current = showEmptyRoomStill;
   }, [showEmptyRoomStill]);
 
+  useEffect(() => {
+    if (!showEmptyRoomStill || action !== null) return;
+
+    setEmptyRoomDialogue(getEmptyRoomDialogue());
+    const intervalId = setInterval(() => {
+      setEmptyRoomDialogue(getEmptyRoomDialogue());
+    }, EMPTY_ROOM_DIALOGUE_INTERVAL_MS);
+
+    return () => clearInterval(intervalId);
+  }, [showEmptyRoomStill, action]);
+
   const voiceRecognitionEnabled =
     Platform.OS !== 'web' &&
     isFocused &&
@@ -332,7 +353,6 @@ export function HomeScreen({
   ]);
 
   function clearLongBackgroundEmpty() {
-    if (!dogState.homeForceEmptyRoom) return;
     setDogState((prev) =>
       prev.homeForceEmptyRoom ? { ...prev, homeForceEmptyRoom: false } : prev
     );
@@ -379,17 +399,30 @@ export function HomeScreen({
       return getIdleLookDialogue();
     }
 
+    if (showEmptyRoomStill) {
+      return emptyRoomDialogue;
+    }
+
     if (ambientIdleBridge && shouldCycleAmbient) {
       return '바빠? 나 기다리는데...';
     }
 
     return getDogDialogue(dogState, 'home');
-  }, [dogState, action, ambientIdleBridge, shouldCycleAmbient]);
+  }, [
+    dogState,
+    action,
+    ambientIdleBridge,
+    shouldCycleAmbient,
+    showEmptyRoomStill,
+    emptyRoomDialogue,
+  ]);
 
   const activeBasePlayback =
-    ambientIdleBridge && shouldCycleAmbient && idleBridgePlayback
+    preferIdleBaseAfterEmpty && idleBridgePlayback
       ? idleBridgePlayback
-      : ambientPlayback;
+      : ambientIdleBridge && shouldCycleAmbient && idleBridgePlayback
+        ? idleBridgePlayback
+        : ambientPlayback;
 
   const videoPath = activeBasePlayback?.path ?? null;
   const baseLoop = activeBasePlayback?.loop ?? true;
@@ -485,17 +518,23 @@ export function HomeScreen({
   function startAction(nextAction: DogAction) {
     if (!dogManifest || !nextAction || !dogState.breed) return;
 
+    if (nextAction !== 'emptyWake') {
+      setPreferIdleBaseAfterEmpty(false);
+    }
+
     clearLongBackgroundEmpty();
 
     if (nextAction === 'emptyWake') {
       const playback = resolveEmptyWakePlayback(dogState, dogManifest);
       if (!playback?.path) return;
 
+      setPreferIdleBaseAfterEmpty(true);
       setAction('emptyWake');
       setActionMeta(playback);
       setActionReplayKey((prev) => prev + 1);
       setDogState((prev) => ({
         ...prev,
+        homeForceEmptyRoom: false,
         lastInteractionAt: new Date().toISOString(),
         mood: clampStat(prev.mood + 3),
         affection: clampStat(prev.affection + 2),
@@ -657,11 +696,21 @@ export function HomeScreen({
   }
 
   function handleActionEnd() {
+    const wasEmptyWake = actionRef.current === 'emptyWake';
+
     setAction(null);
     setActionMeta(null);
-    if (!ANDROID_SIMPLE_VIDEO) {
-      setVideoReplayKey((prev) => prev + 1);
+
+    if (wasEmptyWake) {
+      setPreferIdleBaseAfterEmpty(true);
+      setDogState((prev) =>
+        prev.homeForceEmptyRoom
+          ? { ...prev, homeForceEmptyRoom: false }
+          : prev
+      );
     }
+
+    setVideoReplayKey((prev) => prev + 1);
     bumpLookIdleTimer();
   }
 

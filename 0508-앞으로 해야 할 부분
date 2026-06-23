@@ -9,11 +9,69 @@ streak
 4️⃣ 수익 구조 연결
 프리미엄 기능
 
+---
 
+5️⃣ [추후] Android Health Connect 연동 (백로그)
 
+현재 상태 (2025-06)
+- 포그라운드: expo-sensors Pedometer.watchStepCount (Android/iOS)
+- iOS 백그라운드 복귀: Pedometer.getStepCountAsync(구간 조회)
+- Android 백그라운드 복귀: getStepCountAsync 미지원 → 시간 기반 보수적 보정(약 1.8보/초, 만보기 권한 있을 때만)
+- 권한 없음: 가짜 걸음(시뮬레이션) 없음 → GPS만으로는 기록 불가(걸음 0)
+- 산책 인정: WALK_METERS_PER_STEP_EVIDENCE = 0.7m/보
 
-Commit failed
-Committing the files to the repository failed. The file is too large and cannot be uploaded. Consider creating the file in a local clone and pushing it to GitHub.
+도입 목적
+- Android 백그라운드(화면 끔·다른 앱) 구간 걸음을 OS 기록에서 정확히 조회
+- 시간 추정 보정(1.8보/초) 대체 또는 보완
 
+예상 난이도
+- 최소 연동(구간 걸음 읽기만): 1~2일
+- 출시 수준(권한 UX·기기별 폴백·테스트·스토어): 3~5일
 
+필요 패키지·설정
+- react-native-health-connect + expo-health-connect
+- expo-build-properties (minSdkVersion 26+, compile/target SDK 조정)
+- app.json plugins 추가 후 EAS로 Android 재빌드 (Expo Go 불가, dev client/APK는 이미 사용 중)
+
+구현 개요
+1. 산책 시작 시 (Android만) Health Connect initialize + Steps 읽기 권한 요청
+2. 포그라운드 UI는 기존 watchStepCount 유지
+3. AppState background → active 복귀 시 readRecords('Steps', { startTime, endTime })로 구간 합산
+4. 실패 시 폴백: (a) expo-sensors (b) 현재 시간 보정(1.8보/초)
+5. iOS는 기존 getStepCountAsync 유지 (변경 없음)
+
+주의·운영
+- Android 14+: Health Connect OS 내장 / 그 이전: Health Connect 앱 별도 설치 필요할 수 있음
+- Play Console 건강 데이터 선언, 개인정보 처리방침 문구
+- ACTIVITY_RECOGNITION vs Health Connect 권한 — Android에서 역할 분리·중복 방지 설계
+
+관련 파일 (연동 시 수정 예상)
+- screens/WalkScreen.tsx — syncPedometerAfterBackground, 권한·초기화
+- app.json — plugins, android.permissions
+- utils/walkMetrics.ts — (필요 시) 걸음 출처 구분만, 인정 로직은 유지 가능
+- 신규 utils/androidHealthConnect.ts 등 헬퍼 분리 권장
+
+도입 시점 제안
+- 실사용자 피드백: “백그라운드 산책 시 걸음·거리가 자주 빠진다”가 쌓일 때
+- 당장은 현재 보정 + 포그라운드 만보기로 1차 운영 가능
+
+참고
+- https://matinzd.github.io/react-native-health-connect
+- Expo 문서: Pedometer 백그라운드 미지원 → Android는 Health Connect 대안 명시
+
+---
+
+6️⃣ 산책 종료 유도 (B+C+D 구현됨 — 2025-06)
+
+구현 요약
+- utils/walkSessionNotifications.ts
+- WalkScreen 연동
+
+B. 백그라운드 4분 후 알림
+C. 복귀 시 모달 (산책 10분+ & 백그라운드 30초+)
+D. 걸음/GPS 변화 없을 때 30분 후 알림 (움직일 때마다 타이머 리셋)
+- 일시정지·종료·화면 이탈 시 예약 알림 취소
+
+미구현 (3단계)
+A. ongoing 상단 알림 (Android foreground service)
 

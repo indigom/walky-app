@@ -147,12 +147,9 @@ export function BreedSelectScreen({
     } catch (error) {
       console.log('breed asset download error:', error);
 
-      const detail =
-        error instanceof Error ? error.message : '알 수 없는 오류';
-
       Alert.alert(
         '다운로드 실패',
-        `강아지 영상을 다운로드하지 못했어요.\n\n${detail}\n\n서버(walky.co.kr)의 dogs/{견종}/manifest.json 이 깨져 있으면 FTP로 올바른 JSON을 다시 올려 주세요.`
+        '영상을 다운로드하지 못했습니다. 인터넷 환경을 체크하시고 견종을 다시 선택해 주시기 바랍니다.'
       );
     } finally {
       setDownloading(false);

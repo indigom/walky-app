@@ -22,8 +22,24 @@ const IDLE_LOOK_DIALOGUES = [
   '조금 있으면 나 삐질 것 같아',
 ] as const;
 
+/** 30분+ 백그라운드 후 빈 방(emptyroom) — 배고픔·산책욕 대사 대신 */
+const EMPTY_ROOM_DIALOGUES = [
+  '부르면 나올게',
+  '나 어디있게?',
+  '나 삐졌어 TT',
+  '날 잊은거야?',
+  '인간!! 도대체 뭐하냐?',
+  '제발 이름이라도 한번 불러줘..ㅠㅠ',
+] as const;
+
+export const EMPTY_ROOM_DIALOGUE_INTERVAL_MS = 25_000;
+
 export function getIdleLookDialogue(): string {
   return randomPick([...IDLE_LOOK_DIALOGUES]);
+}
+
+export function getEmptyRoomDialogue(): string {
+  return randomPick([...EMPTY_ROOM_DIALOGUES]);
 }
 
 function randomPick(messages: string[]) {

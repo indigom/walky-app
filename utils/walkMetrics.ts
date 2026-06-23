@@ -39,7 +39,7 @@ export function estimateDistanceKmFromSteps(
 export const GPS_MIN_TRUST_M = 18;
 
 /** 산책 인정 시 걸음 1보당 최소 이동 거리(m) — 이보다 적으면 기록하지 않음 */
-export const WALK_METERS_PER_STEP_EVIDENCE = 0.3;
+export const WALK_METERS_PER_STEP_EVIDENCE = 0.7;
 
 /** 인정 산책 최소 이동 거리(m) */
 export const MIN_COUNTED_WALK_DISTANCE_M = 30;
@@ -56,11 +56,9 @@ export type RawWalkDistanceInput = {
   pedometerActive: boolean;
   steps: number;
   strideMeters: number;
-  /** 웹·시뮬레이션만 시간 기반 거리 허용 */
-  allowTimeEstimate: boolean;
 };
 
-/** GPS → 걸음(보폭) 순. 시간 추정은 시뮬레이션에서만. */
+/** GPS → 걸음(보폭) 순 */
 export function computeRawWalkDistanceKm(input: RawWalkDistanceInput): number {
   const stepKm = estimateDistanceKmFromSteps(input.steps, input.strideMeters);
 
@@ -70,11 +68,6 @@ export function computeRawWalkDistanceKm(input: RawWalkDistanceInput): number {
   if (trustGps) return input.gpsDistanceKm;
 
   if (input.steps > 0) return stepKm;
-
-  if (input.allowTimeEstimate && input.durationSeconds > 0) {
-    const averageWalkingSpeedKmh = 4.5;
-    return (input.durationSeconds / 3600) * averageWalkingSpeedKmh;
-  }
 
   return 0;
 }
@@ -86,8 +79,8 @@ export type ResolvedWalkOutcome = {
 };
 
 /**
- * 걸음 수가 거리(최대 0.3m/보)를 뒷받침할 때만 산책으로 인정.
- * 인정 거리 = min(측정 거리, 걸음×0.3m).
+ * 걸음 수가 거리(최대 0.7m/보)를 뒷받침할 때만 산책으로 인정.
+ * 인정 거리 = min(측정 거리, 걸음×0.7m).
  */
 export function resolveWalkOutcome(
   steps: number,
