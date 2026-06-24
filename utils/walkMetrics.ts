@@ -44,6 +44,14 @@ export const WALK_METERS_PER_STEP_EVIDENCE = 0.7;
 /** 인정 산책 최소 이동 거리(m) */
 export const MIN_COUNTED_WALK_DISTANCE_M = 30;
 
+/** 인정 거리 100m당 최대 걸음 수 — GPS 대비 만보기 과대 누적 상한 */
+export const WALK_MAX_STEPS_PER_100M = 170;
+
+export function maxStepsForWalkDistanceM(distanceM: number): number {
+  if (distanceM <= 0) return 0;
+  return Math.ceil((distanceM / 100) * WALK_MAX_STEPS_PER_100M);
+}
+
 export function evidenceDistanceKmFromSteps(steps: number): number {
   if (steps <= 0) return 0;
   return (steps * WALK_METERS_PER_STEP_EVIDENCE) / 1000;
@@ -81,6 +89,7 @@ export type ResolvedWalkOutcome = {
 /**
  * 걸음 수가 거리(최대 0.7m/보)를 뒷받침할 때만 산책으로 인정.
  * 인정 거리 = min(측정 거리, 걸음×0.7m).
+ * 기록 걸음 = min(측정 걸음, 인정 거리 기준 100m당 170보 상한).
  */
 export function resolveWalkOutcome(
   steps: number,
@@ -100,10 +109,16 @@ export function resolveWalkOutcome(
 
   const capKm = evidenceDistanceKmFromSteps(roundedSteps);
   const distanceKm = Math.min(rawDistanceKm, capKm);
+  const distanceM = distanceKm * 1000;
 
-  if (distanceKm * 1000 < MIN_COUNTED_WALK_DISTANCE_M) {
+  if (distanceM < MIN_COUNTED_WALK_DISTANCE_M) {
     return { counted: false, distanceKm: 0, steps: roundedSteps };
   }
 
-  return { counted: true, distanceKm, steps: roundedSteps };
+  const stepsRecorded = Math.min(
+    roundedSteps,
+    maxStepsForWalkDistanceM(distanceM)
+  );
+
+  return { counted: true, distanceKm, steps: stepsRecorded };
 }
