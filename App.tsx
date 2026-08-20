@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Alert, AppState } from 'react-native';
+import { Alert, AppState, Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { NavigationContainer } from '@react-navigation/native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
@@ -16,10 +16,7 @@ import { WalkHabitScreen } from './screens/WalkHabitScreen';
 import { HomeScreen } from './screens/HomeScreen';
 import { SettingsScreen } from './screens/SettingsScreen';
 import { WalkScreen } from './screens/WalkScreen';
-import {
-  INSUFFICIENT_WALK_ENERGY_MESSAGE,
-  WalkResultScreen,
-} from './screens/WalkResultScreen';
+import { WalkResultScreen } from './screens/WalkResultScreen';
 import { PostWalkAdScreen } from './screens/PostWalkAdScreen';
 import { RewardVideoScreen } from './screens/RewardVideoScreen';
 import { SplashScreen } from './screens/SplashScreen';
@@ -32,6 +29,12 @@ import {
 import { WALKY_ASSET_ORIGIN } from './constants/assetServer';
 import { INITIAL_POINTS, pointsEarnedForWalk } from './constants/points';
 import { applyDogWallClockAndNotify } from './utils/dogWallClock';
+import { getInsufficientWalkEnergyMessage } from './utils/dogDialogue';
+import {
+  initDogDialoguesPack,
+  syncDogDialoguesPack,
+} from './utils/syncDogDialogues';
+import { initAdMob } from './utils/initAdMob';
 import {
   applyForegroundAfterBackground,
   applyStoredBackgroundEmptyOnLaunch,
@@ -289,6 +292,11 @@ export default function App() {
   useEffect(() => {
     async function loadState() {
       try {
+        await initDogDialoguesPack();
+        void syncDogDialoguesPack();
+        if (Platform.OS !== 'web') {
+          void initAdMob();
+        }
         if (DEV_ALWAYS_ONBOARDING) {
           await AsyncStorage.removeItem(STORAGE_KEY);
           await AsyncStorage.removeItem(WALK_RECORDS_STORAGE_KEY);
@@ -439,6 +447,8 @@ export default function App() {
           setDogManifest(manifest);
         }
       });
+
+      void syncDogDialoguesPack();
     });
 
     return () => sub.remove();
@@ -757,7 +767,7 @@ export default function App() {
                 rewardUnlocked={rewardUnlocked}
                 insufficientEnergyMessage={
                   showInsufficientEnergy
-                    ? INSUFFICIENT_WALK_ENERGY_MESSAGE
+                    ? getInsufficientWalkEnergyMessage()
                     : null
                 }
                 onPressReward={() => handleOpenRewardVideo(navigation)}

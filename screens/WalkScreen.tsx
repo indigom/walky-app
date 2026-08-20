@@ -66,12 +66,21 @@ import {
   resolveWalkOutcome,
 } from '../utils/walkMetrics';
 import {
+  getWalkGpsLastCoords,
+  setWalkGpsPaused,
+  startWalkBackgroundLocation,
+  stopWalkBackgroundLocation,
+  subscribeWalkGpsDistance,
+} from '../utils/walkBackgroundLocation';
+import {
   cancelWalkBackgroundReminder,
   cancelWalkSessionNotifications,
   scheduleWalkBackgroundReminder,
   scheduleWalkIdleReminder,
   WALK_RESUME_PROMPT_MIN_ELAPSED_SEC,
 } from '../utils/walkSessionNotifications';
+import { getWalkCheerMessage } from '../utils/dogDialogue';
+import { useDogDialoguesRevision } from '../utils/dogDialoguesPack';
 
 type WalkScreenProps = {
   dogState: DogState;
@@ -81,18 +90,6 @@ type WalkScreenProps = {
   onDiscardWalk: () => void;
 };
 
-const WALK_MESSAGES = [
-  '좋아! 천천히 같이 걸어보자.',
-  '벌써 5분이나 걸었어. 잘하고 있어!',
-  '네 걸음 소리가 참 든든해.',
-  '조금만 더 걸으면 기분이 더 좋아질 거야.',
-  '오늘도 너랑 걷는 시간이 좋아.',
-  '꾸준히 걷는 너, 정말 멋져!',
-  '숨 고르면서 편하게 걸어도 괜찮아.',
-  '조금씩 건강해지고 있어.',
-  '거의 다 왔어. 조금만 더 힘내!',
-  '최고야! 오늘 산책도 성공이야.',
-];
 
 function formatDuration(totalSeconds: number): string {
   const minutes = Math.floor(totalSeconds / 60);
@@ -131,7 +128,7 @@ function getCheerMessageIndex(elapsedSeconds: number): number {
 
 function getCheerMessage(elapsedSeconds: number): string {
   const index = getCheerMessageIndex(elapsedSeconds);
-  return WALK_MESSAGES[index % WALK_MESSAGES.length];
+  return getWalkCheerMessage(index);
 }
 
 export function WalkScreen({
@@ -142,6 +139,7 @@ export function WalkScreen({
   onDiscardWalk,
 }: WalkScreenProps) {
   useKeepAwake();
+  const dialogueRevision = useDogDialoguesRevision();
 
   const isFocused = useIsFocused();
 
@@ -291,7 +289,7 @@ export function WalkScreen({
 
   const cheerMessage = useMemo(
     () => getCheerMessage(elapsedSeconds),
-    [elapsedSeconds]
+    [elapsedSeconds, dialogueRevision]
   );
 
   const nearbyWalkerAlertsOn = dogState.user?.nearbyWalkerAlerts !== false;
@@ -560,19 +558,27 @@ export function WalkScreen({
   }, [pedometerActive, isPaused]);
 
   useEffect(() => {
-    if (Platform.OS === 'web' || !isFocused) {
-      lastFixRef.current = null;
-      return;
-    }
+    if (Platform.OS === 'web') return;
 
-    let subscription: Location.LocationSubscription | null = null;
     let alive = true;
+    let unsubGps = () => {};
+    let subscription: Location.LocationSubscription | null = null;
 
-    (async () => {
+    const applyGpsMeters = (meters: number) => {
+      gpsMetersRef.current = meters;
+      setGpsDistanceKm(meters / 1000);
+      recordWalkMovement();
+
+      const coords = getWalkGpsLastCoords();
+      if (coords) {
+        lastGpsCoordsRef.current = coords;
+        maybeReportNearbyWalker(coords.latitude, coords.longitude);
+      }
+    };
+
+    const startForegroundWatchFallback = async () => {
       const { status } = await Location.requestForegroundPermissionsAsync();
-      if (!alive) return;
-
-      if (status !== 'granted') {
+      if (!alive || status !== 'granted') {
         setGpsActive(false);
         lastFixRef.current = null;
         return;
@@ -613,16 +619,31 @@ export function WalkScreen({
           maybeReportNearbyWalker(latitude, longitude);
         }
       );
+    };
+
+    (async () => {
+      const bgOk = await startWalkBackgroundLocation();
+      if (!alive) return;
+
+      if (bgOk) {
+        setGpsActive(true);
+        unsubGps = subscribeWalkGpsDistance(applyGpsMeters);
+        return;
+      }
+
+      await startForegroundWatchFallback();
     })().catch(() => {
       if (alive) setGpsActive(false);
     });
 
     return () => {
       alive = false;
+      unsubGps();
       subscription?.remove();
       lastFixRef.current = null;
+      void stopWalkBackgroundLocation();
     };
-  }, [isFocused]);
+  }, []);
 
   function handleTogglePause() {
     setIsPaused((prev) => {
@@ -635,10 +656,12 @@ export function WalkScreen({
         }
         flushWalkClock();
         stepsBaselineRef.current = stepsLiveRef.current;
+        setWalkGpsPaused(true);
         void cancelWalkSessionNotifications();
       } else if (prev && !next) {
         walkingSegmentStartedAtRef.current = Date.now();
         flushWalkClock();
+        setWalkGpsPaused(false);
         recordWalkMovement();
       }
       isPausedRef.current = next;
@@ -828,6 +851,7 @@ export function WalkScreen({
 
   function handleFinish() {
     void cancelWalkSessionNotifications();
+    void stopWalkBackgroundLocation();
     void reportNearbyWalkerLeave();
     void leaveNearbySocial();
     const durationSeconds = flushWalkClock();

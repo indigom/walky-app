@@ -5,13 +5,13 @@ import {
   View,
   ScrollView,
 } from 'react-native';
+import { useMemo } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { PrimaryButton } from '../components/PrimaryButton';
 import { getBreedWalkResultBgSource } from '../constants/breedWalkResultImages';
+import { getWalkResultMessage } from '../utils/dogDialogue';
+import { useDogDialoguesRevision } from '../utils/dogDialoguesPack';
 import type { DogState, WalkSummary } from '../types';
-
-export const INSUFFICIENT_WALK_ENERGY_MESSAGE =
-  '오늘은 에너지 소모가 부족해 ㅜㅜ';
 
 type TodayWalkTotal = {
   walkCount: number;
@@ -53,15 +53,7 @@ function formatCalories(value: number | undefined | null): string {
 }
 
 function getResultMessage(dogState: DogState): string {
-  if (dogState.energy < 30) {
-    return `${dogState.name}가 조금 지친 것 같아요. 이제 쉬게 해주세요.`;
-  }
-
-  if (dogState.mood >= 85 || dogState.affection >= 75) {
-    return `${dogState.name}가 오늘 산책을 정말 좋아했어요.`;
-  }
-
-  return `${dogState.name}와 함께 좋은 시간을 보냈어요.`;
+  return getWalkResultMessage(dogState);
 }
 
 function getDefaultTodayTotal(summary: WalkSummary): TodayWalkTotal {
@@ -83,7 +75,11 @@ export function WalkResultScreen({
   onGoHome,
   onPressReward,
 }: WalkResultScreenProps) {
-  const message = getResultMessage(dogState);
+  const dialogueRevision = useDogDialoguesRevision();
+  const message = useMemo(
+    () => getResultMessage(dogState),
+    [dogState, dialogueRevision]
+  );
   const total = todayTotal ?? getDefaultTodayTotal(summary);
   const breed = dogState.breed;
 

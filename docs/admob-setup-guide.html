@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Walky AdMob 설정 가이드</title>
+  <style>
+    @page {
+      size: A4;
+      margin: 18mm 16mm 20mm 16mm;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: "Malgun Gothic", "Apple SD Gothic Neo", "Noto Sans KR", sans-serif;
+      font-size: 11pt;
+      line-height: 1.55;
+      color: #1a1a1a;
+      max-width: 180mm;
+      margin: 0 auto;
+      padding: 12mm 0;
+    }
+
+    h1 {
+      font-size: 20pt;
+      font-weight: 800;
+      margin: 0 0 6pt;
+      color: #111;
+      border-bottom: 3px solid #2563eb;
+      padding-bottom: 8pt;
+    }
+
+    .subtitle {
+      font-size: 10pt;
+      color: #555;
+      margin-bottom: 18pt;
+    }
+
+    h2 {
+      font-size: 13pt;
+      font-weight: 800;
+      margin: 20pt 0 8pt;
+      color: #1e40af;
+      page-break-after: avoid;
+    }
+
+    h3 {
+      font-size: 11pt;
+      font-weight: 700;
+      margin: 14pt 0 6pt;
+      page-break-after: avoid;
+    }
+
+    p, li {
+      margin: 0 0 6pt;
+    }
+
+    ul, ol {
+      margin: 0 0 10pt;
+      padding-left: 18pt;
+    }
+
+    .box {
+      border: 1px solid #cbd5e1;
+      border-radius: 6pt;
+      padding: 10pt 12pt;
+      margin: 10pt 0;
+      background: #f8fafc;
+      page-break-inside: avoid;
+    }
+
+    .box.warn {
+      border-color: #f59e0b;
+      background: #fffbeb;
+    }
+
+    .box.info {
+      border-color: #3b82f6;
+      background: #eff6ff;
+    }
+
+    .box strong {
+      color: #0f172a;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 10pt 0 14pt;
+      font-size: 10pt;
+      page-break-inside: avoid;
+    }
+
+    th, td {
+      border: 1px solid #cbd5e1;
+      padding: 7pt 8pt;
+      text-align: left;
+      vertical-align: top;
+    }
+
+    th {
+      background: #e2e8f0;
+      font-weight: 700;
+    }
+
+    code, .mono {
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 9.5pt;
+      background: #f1f5f9;
+      padding: 1pt 4pt;
+      border-radius: 3pt;
+      word-break: break-all;
+    }
+
+    .step {
+      display: flex;
+      gap: 10pt;
+      margin: 8pt 0;
+      page-break-inside: avoid;
+    }
+
+    .step-num {
+      flex-shrink: 0;
+      width: 22pt;
+      height: 22pt;
+      border-radius: 50%;
+      background: #2563eb;
+      color: #fff;
+      font-weight: 800;
+      font-size: 10pt;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .step-body {
+      flex: 1;
+    }
+
+    .checklist {
+      list-style: none;
+      padding-left: 0;
+    }
+
+    .checklist li {
+      padding-left: 18pt;
+      position: relative;
+      margin-bottom: 5pt;
+    }
+
+    .checklist li::before {
+      content: "☐";
+      position: absolute;
+      left: 0;
+      font-size: 12pt;
+    }
+
+    .page-break {
+      page-break-before: always;
+    }
+
+    .footer {
+      margin-top: 24pt;
+      padding-top: 10pt;
+      border-top: 1px solid #e2e8f0;
+      font-size: 9pt;
+      color: #64748b;
+      text-align: center;
+    }
+
+    .flow {
+      font-size: 10pt;
+      background: #f8fafc;
+      border: 1px dashed #94a3b8;
+      padding: 10pt;
+      margin: 10pt 0;
+      white-space: pre-line;
+      page-break-inside: avoid;
+    }
+
+    @media print {
+      body {
+        padding: 0;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <h1>Walky AdMob 설정 가이드</h1>
+  <p class="subtitle">
+    산책 종료 후 전면 광고 연결 · AdMob 콘솔 화면 기준 · 인쇄용 (A4)<br />
+    작성 기준: walky-app · Android 패키지 <code>com.anonymous.walkyapp</code>
+  </p>
+
+  <h2>1. 이 문서에서 쓰는 용어 (3가지만 기억)</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th style="width:22%">이름</th>
+        <th style="width:38%">모양</th>
+        <th>어디에 쓰나</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>앱 ID</strong></td>
+        <td><code>ca-app-pub-숫자~숫자</code><br />물결표 <strong>~</strong> 포함</td>
+        <td>Walky 앱 전체를 AdMob에 등록할 때 받는 ID.<br />PC <code>.env</code> + APK 빌드에 사용</td>
+      </tr>
+      <tr>
+        <td><strong>광고 단위 ID</strong></td>
+        <td><code>ca-app-pub-숫자/숫자</code><br />슬래시 <strong>/</strong> 포함</td>
+        <td>「산책 끝 전면 광고」 한 칸의 ID.<br />PC <code>.env</code>에만 넣음</td>
+      </tr>
+      <tr>
+        <td><strong>패키지 이름</strong></td>
+        <td><code>com.anonymous.walkyapp</code></td>
+        <td>Android 앱 고유 주소. Firebase 전용이 아님.<br />AdMob·Play 스토어·우리 APK가 모두 같아야 함</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="box info">
+    <strong>Play 스토어에 올린 뒤에만 ID가 생기는 것이 아닙니다.</strong><br />
+    AdMob 웹사이트(admob.google.com)에서 지금 바로 앱을 추가하고 ID를 받을 수 있습니다.
+  </div>
+
+  <h2>2. AdMob 계정 준비</h2>
+
+  <div class="step">
+    <div class="step-num">1</div>
+    <div class="step-body">
+      브라우저에서 <strong>https://admob.google.com</strong> 접속 후 Google 계정으로 로그인
+    </div>
+  </div>
+  <div class="step">
+    <div class="step-num">2</div>
+    <div class="step-body">
+      처음이면 <strong>결제 프로필</strong> 안내가 나옵니다 → 국가, 주소, 세금 정보 입력<br />
+      (나중에 광고 수익을 받을 때 필요. ID 발급과는 별도로 미리 해두는 것을 권장)
+    </div>
+  </div>
+
+  <h2>3. AdMob 「앱 추가」 화면 — 앱 ID 받기</h2>
+
+  <h3>화면 이동</h3>
+  <ol>
+    <li>AdMob 왼쪽 메뉴 <strong>「앱」</strong> 클릭</li>
+    <li>오른쪽 상단 <strong>「앱 추가」</strong> (또는 「앱 추가하기」) 클릭</li>
+  </ol>
+
+  <h3>질문 1: 앱이 Google Play 스토어에 있나요?</h3>
+  <div class="box">
+    <strong>아직 Play에 안 올렸다면 → 「아니요」</strong> 선택<br />
+    (나중에 스토어에 올려도 AdMob 앱을 다시 연결할 수 있습니다)
+  </div>
+
+  <h3>질문 2: 플랫폼</h3>
+  <div class="box">
+    <strong>「Android」</strong> 선택<br />
+    (iOS는 나중에 출시할 때 별도로 추가)
+  </div>
+
+  <h3>질문 3: 앱 이름</h3>
+  <div class="box">
+    입력 예: <code>walky</code> 또는 <code>Walky</code><br />
+    AdMob 콘솔에서 본인이 알아보기 쉬운 이름이면 됩니다.
+  </div>
+
+  <h3>질문 4: Android 패키지 이름 ★ 중요</h3>
+  <div class="box warn">
+    아래 값을 <strong>오타 없이 그대로</strong> 입력하세요:<br /><br />
+    <span class="mono" style="font-size:12pt;">com.anonymous.walkyapp</span><br /><br />
+    우리 앱 <code>app.json</code>의 <code>android.package</code>와 동일해야 합니다.<br />
+    Firebase 기준이 아니라 <strong>우리 앱의 공식 패키지명</strong>입니다.
+  </div>
+
+  <h3>저장 후 — 앱 ID 복사</h3>
+  <ol>
+    <li>「앱 추가」 완료 후 앱 상세 화면 또는 「앱 설정」으로 이동</li>
+    <li><strong>「앱 ID」</strong> 항목에서 값 복사</li>
+    <li>형태: <code>ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy</code> (반드시 <strong>~</strong> 포함)</li>
+  </ol>
+
+  <div class="box info">
+    <strong>이 값을 PC 프로젝트에 넣을 곳:</strong><br />
+    파일: <code>walky-app/.env</code><br />
+    <code>EXPO_PUBLIC_ADMOB_ANDROID_APP_ID=여기에_붙여넣기</code>
+  </div>
+
+  <div class="page-break"></div>
+
+  <h2>4. AdMob 「광고 단위 추가」 화면 — 광고 단위 ID 받기</h2>
+
+  <p>산책을 끝낸 뒤, 결과 화면 직전에 뜨는 <strong>전면(Interstitial)</strong> 광고용입니다.</p>
+
+  <h3>화면 이동</h3>
+  <ol>
+    <li>AdMob 왼쪽 「앱」→ 방금 만든 <strong>walky</strong> 앱 클릭</li>
+    <li>상단 탭 <strong>「광고 단위」</strong> 클릭</li>
+    <li><strong>「광고 단위 추가」</strong> 클릭</li>
+  </ol>
+
+  <h3>광고 형식 선택</h3>
+  <div class="box">
+    <strong>「전면」</strong> 선택 (영문 화면: <strong>Interstitial</strong>)<br />
+    배너·보상형이 아닙니다.
+  </div>
+
+  <h3>광고 단위 이름</h3>
+  <div class="box">
+    입력 예: <code>산책종료_전면</code> 또는 <code>post_walk_interstitial</code><br />
+    콘솔에서 구분하기 쉬운 이름이면 됩니다.
+  </div>
+
+  <h3>저장 후 — 광고 단위 ID 복사</h3>
+  <ol>
+    <li>생성 완료 화면 또는 광고 단위 목록에서 ID 확인</li>
+    <li>형태: <code>ca-app-pub-xxxxxxxxxxxxxxxx/zzzzzzzzzz</code> (반드시 <strong>/</strong> 포함)</li>
+  </ol>
+
+  <div class="box info">
+    <strong>이 값을 PC 프로젝트에 넣을 곳:</strong><br />
+    파일: <code>walky-app/.env</code><br />
+    <code>EXPO_PUBLIC_ADMOB_POST_WALK_INTERSTITIAL_UNIT_ID=여기에_붙여넣기</code>
+  </div>
+
+  <h2>5. PC 프로젝트 .env 작성 예시</h2>
+
+  <p>프로젝트 폴더에 <code>.env</code> 파일이 없으면 <code>.env.example</code>을 복사해 <code>.env</code>로 만듭니다.</p>
+
+  <div class="box" style="font-family: Consolas, monospace; font-size: 9.5pt; line-height: 1.45;">
+# Google AdMob (Walky 산책 종료 전면 광고)<br />
+EXPO_PUBLIC_ADMOB_ANDROID_APP_ID=ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy<br />
+EXPO_PUBLIC_ADMOB_POST_WALK_INTERSTITIAL_UNIT_ID=ca-app-pub-xxxxxxxxxxxxxxxx/zzzzzzzzzz<br />
+<br />
+# iOS 출시 시 추가 (지금은 비워도 됨)<br />
+# EXPO_PUBLIC_ADMOB_IOS_APP_ID=ca-app-pub-xxxxxxxxxxxxxxxx~yyyyyyyyyy
+  </div>
+
+  <h2>6. 무엇을 바꾸면 APK를 다시 빌드해야 하나?</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>변경한 값</th>
+        <th>재빌드 필요?</th>
+        <th>명령 예시</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><code>EXPO_PUBLIC_ADMOB_ANDROID_APP_ID</code><br />(앱 ID, ~ 포함)</td>
+        <td><strong>필요</strong></td>
+        <td><code>npm run eas:prod:android</code></td>
+      </tr>
+      <tr>
+        <td><code>EXPO_PUBLIC_ADMOB_POST_WALK_INTERSTITIAL_UNIT_ID</code><br />(광고 단위 ID, / 포함)</td>
+        <td>원칙적으로 .env만으로 가능.<br />앱 ID를 같이 바꿨다면 재빌드</td>
+        <td>—</td>
+      </tr>
+      <tr>
+        <td>패키지명 변경<br />(<code>com.anonymous.walkyapp</code>)</td>
+        <td><strong>필요</strong> + AdMob·Play도 같이 변경</td>
+        <td>—</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>7. 앱에서 광고가 뜨는 흐름</h2>
+
+  <div class="flow">산책 종료 버튼
+  → PostWalkAd 화면 (광고 로드)
+  → AdMob 전면 광고 전체 화면 표시
+  → 사용자가 광고 닫기
+  → 산책 결과 화면
+
+  ※ 광고 로드 실패·12초 타임아웃 시 「산책 결과 보기」 버튼으로 건너뜀
+  ※ Expo Go에서는 동작 안 함 → EAS로 만든 APK 필요</div>
+
+  <h2>8. 「AdMob 앱 검수」란? (Play 심사와 다름)</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>구분</th>
+        <th>무엇인가</th>
+        <th>언제</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td><strong>AdMob 앱 ID 발급</strong></td>
+        <td>AdMob에서 앱 추가하면 바로 받음</td>
+        <td>Play 출시 전 가능</td>
+      </tr>
+      <tr>
+        <td><strong>AdMob 검수</strong></td>
+        <td>실제 광고·수익 허용 여부 검토</td>
+        <td>결제 프로필·앱 정보 제출 후</td>
+      </tr>
+      <tr>
+        <td><strong>Google Play 심사</strong></td>
+        <td>스토어에 앱 게시 심사</td>
+        <td>APK/AAB 업로드 후 (별도)</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="box warn">
+    검수 전에는 <strong>테스트 광고</strong>만 보이거나 광고가 안 뜰 수 있습니다.<br />
+    개발 중에는 Google 테스트 ID로 동작합니다.
+  </div>
+
+  <div class="page-break"></div>
+
+  <h2>9. 체크리스트 (인쇄 후 체크용)</h2>
+
+  <ul class="checklist">
+    <li>AdMob 로그인 및 결제 프로필 등록</li>
+    <li>앱 추가 → Android → 패키지 <code>com.anonymous.walkyapp</code></li>
+    <li>앱 ID (<code>~</code> 포함) 복사 → <code>.env</code>의 <code>EXPO_PUBLIC_ADMOB_ANDROID_APP_ID</code></li>
+    <li>광고 단위 추가 → 형식 「전면」</li>
+    <li>광고 단위 ID (<code>/</code> 포함) 복사 → <code>.env</code>의 <code>EXPO_PUBLIC_ADMOB_POST_WALK_INTERSTITIAL_UNIT_ID</code></li>
+    <li><code>npm run eas:prod:android</code> 로 APK 재빌드</li>
+    <li>폰에 APK 설치 후 산책 종료 → 광고 구간 확인</li>
+  </ul>
+
+  <h2>10. ID 붙여넣기 메모 (손으로 적기)</h2>
+
+  <table>
+    <thead>
+      <tr>
+        <th>항목</th>
+        <th>AdMob에서 복사한 값</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td>앱 ID (Android)<br /><code>EXPO_PUBLIC_ADMOB_ANDROID_APP_ID</code></td>
+        <td style="height:36pt;"></td>
+      </tr>
+      <tr>
+        <td>전면 광고 단위 ID<br /><code>EXPO_PUBLIC_ADMOB_POST_WALK_INTERSTITIAL_UNIT_ID</code></td>
+        <td style="height:36pt;"></td>
+      </tr>
+      <tr>
+        <td>APK 빌드 일자</td>
+        <td style="height:24pt;"></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="footer">
+    Walky App · AdMob 설정 가이드 · admob.google.com · 패키지 com.anonymous.walkyapp
+  </div>
+
+</body>
+</html>

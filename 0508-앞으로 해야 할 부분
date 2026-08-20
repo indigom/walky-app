@@ -72,6 +72,23 @@ C. 복귀 시 모달 (산책 10분+ & 백그라운드 30초+)
 D. 걸음/GPS 변화 없을 때 30분 후 알림 (움직일 때마다 타이머 리셋)
 - 일시정지·종료·화면 이탈 시 예약 알림 취소
 
-미구현 (3단계)
-A. ongoing 상단 알림 (Android foreground service)
+7️⃣ 산책 중 백그라운드 GPS (구현됨 — 2025-06)
+
+- utils/walkBackgroundLocation.ts + TaskManager (index.ts import)
+- expo-task-manager, app.json: iOS UIBackgroundModes, Android foreground service + background location
+- 산책 시작 시 startLocationUpdatesAsync, 종료 시 stop
+- 실패 시 기존 watchPositionAsync(포그라운드) 폴백
+- 새 APK 빌드 필수 (네이티브 권한·manifest)
+
+미구현
+A. ongoing 상단 알림 (산책 세션 전용, GPS 알림과 별도 UI 개선)
+
+8️⃣ 강아지 대사 원격 수정 (구현됨 — 2025-06)
+
+- utils/syncDogDialogues.ts — 앱 시작·포그라운드 복귀 시 https://walky.co.kr/dialogues/ko.json 동기화
+- utils/dogDialoguesDefaults.ts — 번들 기본값 (오프라인·실패 시 폴백)
+- remote-assets/dialogues/ko.json — 서버 업로드용 샘플 (walky.co.kr에 동일 경로 배포)
+- 부분 JSON만 올려도 병합됨 (빈 배열·누락 키는 기본값 유지)
+- walkResult·nameCall 등 phrases.walkResultLiked 에 {name} 플레이스홀더
+- 재빌드 불필요 — 기존 APK에서도 서버 JSON만 바꾸면 반영 (앱 재실행 또는 포그라운드 복귀)
 

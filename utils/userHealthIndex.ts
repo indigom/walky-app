@@ -137,3 +137,20 @@ export function healthIndexAccentColor(score: number): string {
   if (score >= 40) return '#FDBA74';
   return '#FCA5A5';
 }
+
+/** 건강 지수 모달에 표시할 안내 문구 */
+export function healthIndexModalAdvice(score: number): string {
+  if (score >= 80) {
+    return '운동을 열심히 하셨군요. 건강상태가 아주 양호합니다.';
+  }
+  if (score >= 60) {
+    return '꾸준히 산책하고 계시네요. 건강 상태가 좋아요.';
+  }
+  if (score >= 40) {
+    return '조금 더 자주 산책하면 건강 지수가 올라갈 거예요.';
+  }
+  if (score >= 20) {
+    return '산책이 필요해요.';
+  }
+  return '지금 건강상태가 너무 안좋아요.';
+}

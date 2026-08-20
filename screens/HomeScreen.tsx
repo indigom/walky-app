@@ -31,13 +31,17 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 import { PrimaryButton } from '../components/PrimaryButton';
 import { DogVisual } from '../components/DogVisual';
+import { HealthIndexModal } from '../components/HealthIndexModal';
 
 import {
   EMPTY_ROOM_DIALOGUE_INTERVAL_MS,
   getDogDialogue,
   getEmptyRoomDialogue,
+  getIdleBridgeDialogue,
   getIdleLookDialogue,
+  getNameCallDialogue,
 } from '../utils/dogDialogue';
+import { useDogDialoguesRevision } from '../utils/dogDialoguesPack';
 import { applyDogWallClockAndNotify } from '../utils/dogWallClock';
 import {
   configureLocalNotificationHandler,
@@ -200,6 +204,7 @@ export function HomeScreen({
 }: Props) {
   const isFocused = useIsFocused();
   const insets = useSafeAreaInsets();
+  const dialogueRevision = useDogDialoguesRevision();
 
   const [appIsActive, setAppIsActive] = useState(
     () => AppState.currentState === 'active'
@@ -217,6 +222,7 @@ export function HomeScreen({
     getEmptyRoomDialogue()
   );
   const [hearts, setHearts] = useState<Heart[]>([]);
+  const [healthModalVisible, setHealthModalVisible] = useState(false);
   const lastHeartTimeRef = useRef(0);
   const ambientReplayTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const actionRef = useRef<DogAction>(null);
@@ -392,7 +398,7 @@ export function HomeScreen({
     }
 
     if (action === 'nameCall' || action === 'emptyWake') {
-      return '응? 나 불렀어?';
+      return getNameCallDialogue();
     }
 
     if (action === 'idleLook') {
@@ -404,7 +410,7 @@ export function HomeScreen({
     }
 
     if (ambientIdleBridge && shouldCycleAmbient) {
-      return '바빠? 나 기다리는데...';
+      return getIdleBridgeDialogue();
     }
 
     return getDogDialogue(dogState, 'home');
@@ -415,6 +421,7 @@ export function HomeScreen({
     shouldCycleAmbient,
     showEmptyRoomStill,
     emptyRoomDialogue,
+    dialogueRevision,
   ]);
 
   const activeBasePlayback =
@@ -517,6 +524,12 @@ export function HomeScreen({
 
   function startAction(nextAction: DogAction) {
     if (!dogManifest || !nextAction || !dogState.breed) return;
+
+    if (ambientReplayTimerRef.current) {
+      clearTimeout(ambientReplayTimerRef.current);
+      ambientReplayTimerRef.current = null;
+    }
+    setAmbientIdleBridge(false);
 
     if (nextAction !== 'emptyWake') {
       setPreferIdleBaseAfterEmpty(false);
@@ -696,12 +709,13 @@ export function HomeScreen({
   }
 
   function handleActionEnd() {
-    const wasEmptyWake = actionRef.current === 'emptyWake';
+    const endedAction = actionRef.current;
 
     setAction(null);
     setActionMeta(null);
+    setAmbientIdleBridge(false);
 
-    if (wasEmptyWake) {
+    if (endedAction === 'emptyWake') {
       setPreferIdleBaseAfterEmpty(true);
       setDogState((prev) =>
         prev.homeForceEmptyRoom
@@ -842,44 +856,60 @@ export function HomeScreen({
         </TouchableOpacity>
       </View>
 
-      <View style={styles.statusIconColumn} pointerEvents="none">
-        <View style={styles.statusIconItem}>
-          <Image
-            source={require('../assets/ui/status-mood.png')}
-            style={styles.statusIcon}
-            accessibilityLabel="강아지 행복"
-          />
-          <StatusStatBadge value={dogHappiness} />
+      <View style={styles.statusIconColumn} pointerEvents="box-none">
+        <View style={styles.dogStatusGroup} pointerEvents="none">
+          <View style={styles.statusIconItem}>
+            <Image
+              source={require('../assets/ui/status-mood.png')}
+              style={styles.statusIcon}
+              accessibilityLabel="강아지 행복"
+            />
+            <StatusStatBadge value={dogHappiness} />
+          </View>
+
+          <View style={styles.statusIconItem}>
+            <Image
+              source={require('../assets/ui/status-energy.png')}
+              style={styles.statusIcon}
+            />
+            <StatusStatBadge value={dogState.energy} />
+          </View>
+
+          <View style={styles.statusIconItem}>
+            <Image
+              source={require('../assets/ui/status-hunger.png')}
+              style={styles.statusIcon}
+            />
+            <StatusStatBadge value={dogState.hunger} />
+          </View>
         </View>
 
-        <View style={styles.statusIconItem}>
-          <Image
-            source={require('../assets/ui/status-energy.png')}
-            style={styles.statusIcon}
-          />
-          <StatusStatBadge value={dogState.energy} />
-        </View>
-
-        <View style={styles.statusIconItem}>
-          <Image
-            source={require('../assets/ui/status-hunger.png')}
-            style={styles.statusIcon}
-          />
-          <StatusStatBadge value={dogState.hunger} />
-        </View>
-
-        <View style={styles.statusIconItem}>
-          <Image
-            source={require('../assets/ui/status-affection.png')}
-            style={styles.statusIcon}
-            accessibilityLabel="내 건강 지수"
-          />
-          <StatusStatBadge
-            value={userHealthIndex.score}
-            accentColor={healthAccent}
-          />
-        </View>
+        <TouchableOpacity
+          style={styles.healthIndexSection}
+          activeOpacity={0.82}
+          onPress={() => setHealthModalVisible(true)}
+          accessibilityLabel="현재 건강지수"
+          accessibilityRole="button"
+        >
+          <Text style={styles.healthIndexLabel}>현재 건강지수</Text>
+          <View style={styles.statusIconItem}>
+            <Image
+              source={require('../assets/ui/status-affection.png')}
+              style={styles.statusIcon}
+            />
+            <StatusStatBadge
+              value={userHealthIndex.score}
+              accentColor={healthAccent}
+            />
+          </View>
+        </TouchableOpacity>
       </View>
+
+      <HealthIndexModal
+        visible={healthModalVisible}
+        score={userHealthIndex.score}
+        onClose={() => setHealthModalVisible(false)}
+      />
 
       <View
         style={[
@@ -1126,10 +1156,24 @@ const styles = StyleSheet.create({
     position: 'absolute',
     top: 162,
     left: 22,
-    width: 54,
+    width: 72,
     zIndex: 50,
     elevation: 50,
+  },
+  dogStatusGroup: {
     gap: 10,
+  },
+  healthIndexSection: {
+    marginTop: 18,
+    alignItems: 'center',
+  },
+  healthIndexLabel: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: 'rgba(255,255,255,0.88)',
+    marginBottom: 5,
+    textAlign: 'center',
+    lineHeight: 13,
   },
   statusIconItem: {
     width: 54,
